@@ -1,0 +1,161 @@
+@page {
+  size: A4;
+  margin: 20mm;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  color: #1f2933;
+  font-family: "DemoNotoSansJP", "Noto Sans JP", "Noto Sans CJK JP", "Yu Gothic", Meiryo, sans-serif;
+  font-size: 11pt;
+  line-height: 1.7;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+main {
+  width: 100%;
+}
+
+.document-view {
+  display: block;
+}
+
+.document-section,
+.function-card,
+.function-grid section {
+  page-break-inside: avoid;
+  break-inside: avoid-page;
+}
+
+.section-listing {
+  page-break-inside: auto;
+  break-inside: auto;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5 {
+  color: #193247;
+  page-break-after: avoid;
+  break-after: avoid-page;
+  page-break-inside: avoid;
+  break-inside: avoid-page;
+  overflow-wrap: anywhere;
+}
+
+h1 {
+  margin: 0 0 10mm;
+  font-size: 22pt;
+}
+
+h2 {
+  margin: 8mm 0 4mm;
+  font-size: 16pt;
+}
+
+h3 {
+  margin: 6mm 0 3mm;
+  font-size: 13pt;
+}
+
+h4 {
+  margin: 0 0 3mm;
+  font-size: 11.5pt;
+}
+
+h5 {
+  margin: 4mm 0 2mm;
+  font-size: 10.5pt;
+}
+
+p,
+li,
+td,
+th,
+code,
+pre {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+p {
+  margin: 0 0 3.5mm;
+}
+
+ul,
+ol {
+  margin: 0 0 4mm 5mm;
+  padding-left: 5mm;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin: 0 0 5mm;
+}
+
+table,
+tr,
+td,
+th {
+  page-break-inside: avoid;
+  break-inside: avoid-page;
+}
+
+th,
+td {
+  border: 1px solid #b8c4d0;
+  padding: 2.5mm;
+  vertical-align: top;
+  text-align: left;
+}
+
+thead th {
+  background: #e8eff4;
+}
+
+pre,
+code {
+  white-space: pre-wrap;
+}
+
+pre {
+  border: 1px solid #d9e2ec;
+  border-radius: 3mm;
+  background: #f8fafc;
+  padding: 4mm;
+  margin: 0 0 4mm;
+}
+
+.function-card {
+  border: 1px solid #d9e2ec;
+  border-radius: 3mm;
+  padding: 4mm;
+  margin: 0 0 4mm;
+  background: #fcfdff;
+}
+
+.function-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4mm;
+}
+
+.empty-value {
+  color: #52606d;
+}

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>レガシーコード解析デモ</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <p class="eyebrow">Legacy VBA Analysis Demo</p>
+        <h1>古い Excel / Access VBA から<br>簡易仕様書と簡易設計書を作るデモ</h1>
+        <p class="hero-copy">
+          VBAコードを読み込み、Geminiで中間JSONを生成し、画面表示・Word・PDFへ展開できるデモです。
+        </p>
+      </header>
+
+      <main class="layout">
+        <section class="panel panel-input">
+          <div class="panel-header">
+            <h2>解析対象コード</h2>
+            <div class="actions">
+              <label class="file-button">
+                <input id="file-input" type="file" accept=".bas,.cls,.frm,.txt">
+                <span>ファイル読込</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <label class="field">
+              <span>実行モード</span>
+              <select id="mode-select">
+                <option value="local-demo" selected>ローカル簡易解析のみ</option>
+                <option value="auto">自動: Gemini優先 / 失敗時はローカル簡易解析</option>
+                <option value="gemini">Gemini APIのみ</option>
+              </select>
+            </label>
+            <button id="analyze-button" class="button button-primary" type="button">解析を実行</button>
+          </div>
+
+          <label class="field">
+            <span>入力コード</span>
+            <textarea id="code-input" spellcheck="false" placeholder="ここにVBAコードを貼り付けるか、ファイルを読み込んでください。"></textarea>
+          </label>
+        </section>
+
+        <aside class="panel panel-side">
+          <h2>このデモで出来る事</h2>
+          <ul class="point-list">
+            <li>古いVBAを読み込むと、仕様書と設計書のたたき台を短時間で作れること</li>
+            <li>コード上の事実と、推測、確認事項を分けて整理できること</li>
+            <li>生成結果をその場で文書として持ち帰れること</li>
+          </ul>
+
+          <div class="status-card">
+            <h3>実行ステータス</h3>
+            <p id="status-text">ファイル読込またはコード貼り付け後に解析できます。</p>
+          </div>
+        </aside>
+
+        <section class="panel panel-output">
+          <div class="panel-header">
+            <h2>簡易仕様書</h2>
+            <div class="actions actions-compact">
+              <button id="spec-pdf-button" class="button button-secondary" type="button" disabled>PDF</button>
+              <button id="spec-docx-button" class="button button-secondary" type="button" disabled>Word</button>
+            </div>
+          </div>
+          <div id="spec-output" class="document-output">ここに簡易仕様書が表示されます。</div>
+        </section>
+
+        <section class="panel panel-output">
+          <div class="panel-header">
+            <h2>簡易設計書</h2>
+            <div class="actions actions-compact">
+              <button id="design-pdf-button" class="button button-secondary" type="button" disabled>PDF</button>
+              <button id="design-docx-button" class="button button-secondary" type="button" disabled>Word</button>
+            </div>
+          </div>
+          <div id="design-output" class="document-output">ここに簡易設計書が表示されます。</div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
