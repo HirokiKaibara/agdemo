@@ -9,7 +9,6 @@ const analyzeButton = document.getElementById("analyze-button");
 const clearFilesButton = document.getElementById("clear-files-button");
 const codeInput = document.getElementById("code-input");
 const fileInput = document.getElementById("file-input");
-const modeSelect = document.getElementById("mode-select");
 const projectNameInput = document.getElementById("project-name-input");
 const statusText = document.getElementById("status-text");
 const sourceText = document.getElementById("source-text");
@@ -27,6 +26,7 @@ const outputs = {
 let sourceName = "input.bas";
 let currentAnalysis = null;
 let selectedFiles = [];
+let activeFileName = null;
 let mermaidInitialized = false;
 
 codeInput.value = "";
@@ -45,6 +45,29 @@ function updateDownloadButtons() {
   });
 }
 
+function getActiveFile() {
+  if (selectedFiles.length === 0) {
+    activeFileName = null;
+    return null;
+  }
+
+  const activeFile = selectedFiles.find((file) => file.fileName === activeFileName) ?? selectedFiles[0];
+  activeFileName = activeFile.fileName;
+  return activeFile;
+}
+
+function refreshCodeEditor() {
+  const activeFile = getActiveFile();
+
+  if (!activeFile) {
+    codeInput.readOnly = false;
+    return;
+  }
+
+  codeInput.value = activeFile.code;
+  codeInput.readOnly = false;
+}
+
 function renderFileList() {
   if (selectedFiles.length === 0) {
     fileList.innerHTML = '<span class="empty-file">ファイル未選択</span>';
@@ -52,14 +75,26 @@ function renderFileList() {
     return;
   }
 
+  const activeFile = getActiveFile();
   fileList.innerHTML = selectedFiles
-    .map((file) => `<span class="file-pill">${escapeHtml(file.fileName)}</span>`)
+    .map(
+      (file) => `
+        <button
+          class="file-pill${file.fileName === activeFile?.fileName ? " is-active" : ""}"
+          type="button"
+          data-file-name="${escapeHtml(file.fileName)}"
+          aria-pressed="${file.fileName === activeFile?.fileName ? "true" : "false"}"
+        >
+          ${escapeHtml(file.fileName)}
+        </button>
+      `.trim()
+    )
     .join("");
 
   sourceText.textContent =
     selectedFiles.length === 1
       ? `入力: ${selectedFiles[0].fileName}`
-      : `入力: ${selectedFiles.length}ファイルを選択中`;
+      : `入力: ${selectedFiles.length}ファイルを選択中 | 表示中: ${activeFile?.fileName ?? selectedFiles[0].fileName}`;
 }
 
 function setDefaultOutputs() {
@@ -119,8 +154,58 @@ function buildPreview(files) {
     .join("\n\n");
 }
 
+function mergeSelectedFiles(existingFiles, incomingFiles) {
+  const mergedFiles = [...existingFiles];
+  let addedCount = 0;
+  let replacedCount = 0;
+
+  incomingFiles.forEach((incomingFile) => {
+    const existingIndex = mergedFiles.findIndex((file) => file.fileName === incomingFile.fileName);
+
+    if (existingIndex >= 0) {
+      mergedFiles[existingIndex] = incomingFile;
+      replacedCount += 1;
+      return;
+    }
+
+    mergedFiles.push(incomingFile);
+    addedCount += 1;
+  });
+
+  return {
+    mergedFiles,
+    addedCount,
+    replacedCount
+  };
+}
+
+function buildFileReadStatus(incomingCount, totalCount, addedCount, replacedCount) {
+  if (totalCount === 0) {
+    return "読み込めるVBAファイルが見つかりませんでした。";
+  }
+
+  const actions = [];
+
+  if (addedCount > 0) {
+    actions.push(`${addedCount}ファイルを追加`);
+  }
+
+  if (replacedCount > 0) {
+    actions.push(`${replacedCount}ファイルを更新`);
+  }
+
+  const actionText = actions.length > 0 ? actions.join("、") : `${incomingCount}ファイルを確認`;
+
+  if (totalCount > 1) {
+    return `${actionText}しました。現在 ${totalCount} ファイルを選択中です。ファイル名をクリックするとコード表示を切り替えられます。`;
+  }
+
+  return `ファイルを読み込みました: ${selectedFiles[0]?.fileName || "input.bas"}`;
+}
+
 function clearSelectedFiles() {
   selectedFiles = [];
+  activeFileName = null;
   fileInput.value = "";
   codeInput.readOnly = false;
   sourceName = "input.bas";
@@ -135,23 +220,40 @@ async function readLocalFiles(fileListValue) {
     }))
   );
 
-  selectedFiles = files.filter((file) => file.code.trim());
-  sourceName = selectedFiles[0]?.fileName || "input.bas";
-  codeInput.value = buildPreview(selectedFiles);
-  codeInput.readOnly = selectedFiles.length > 1;
-  resetOutputs();
-  renderFileList();
+  const normalizedIncomingFiles = files.filter((file) => file.code.trim());
+  const { mergedFiles, addedCount, replacedCount } = mergeSelectedFiles(selectedFiles, normalizedIncomingFiles);
 
-  statusText.textContent =
-    selectedFiles.length > 1
-      ? `${selectedFiles.length}ファイルを読み込みました。複数ファイルのためプレビューは読み取り専用です。`
-      : `ファイルを読み込みました: ${sourceName}`;
+  selectedFiles = mergedFiles;
+  activeFileName = normalizedIncomingFiles[0]?.fileName ?? selectedFiles[0]?.fileName ?? null;
+  sourceName = selectedFiles[0]?.fileName || "input.bas";
+  fileInput.value = "";
+  resetOutputs();
+  refreshCodeEditor();
+  renderFileList();
+  statusText.textContent = buildFileReadStatus(
+    normalizedIncomingFiles.length,
+    selectedFiles.length,
+    addedCount,
+    replacedCount
+  );
 }
 
-function syncSingleFileEdit() {
-  if (selectedFiles.length === 1) {
-    selectedFiles[0].code = codeInput.value;
+function syncActiveFileEdit() {
+  const activeFile = getActiveFile();
+
+  if (activeFile) {
+    activeFile.code = codeInput.value;
   }
+}
+
+function setActiveFile(fileName) {
+  if (!selectedFiles.some((file) => file.fileName === fileName)) {
+    return;
+  }
+
+  activeFileName = fileName;
+  refreshCodeEditor();
+  renderFileList();
 }
 
 function buildAnalyzePayload() {
@@ -160,7 +262,7 @@ function buildAnalyzePayload() {
   if (selectedFiles.length > 0) {
     return {
       files: selectedFiles,
-      mode: modeSelect.value,
+      mode: "gemini",
       sourceName,
       projectName: projectName || undefined
     };
@@ -168,7 +270,7 @@ function buildAnalyzePayload() {
 
   return {
     code: codeInput.value.trim(),
-    mode: modeSelect.value,
+    mode: "gemini",
     sourceName,
     projectName: projectName || undefined
   };
@@ -199,6 +301,16 @@ function ensureMermaid() {
     flowchart: {
       useMaxWidth: true,
       htmlLabels: true
+    },
+    gantt: {
+      leftPadding: 180,
+      rightPadding: 32,
+      gridLineStartPadding: 160,
+      topPadding: 48,
+      barHeight: 26,
+      barGap: 8,
+      fontSize: 13,
+      sectionFontSize: 13
     }
   });
   mermaidInitialized = true;
@@ -397,7 +509,17 @@ fileInput.addEventListener("change", (event) => {
 });
 
 codeInput.addEventListener("input", () => {
-  syncSingleFileEdit();
+  syncActiveFileEdit();
+});
+
+fileList.addEventListener("click", (event) => {
+  const target = event.target.closest("[data-file-name]");
+
+  if (!target) {
+    return;
+  }
+
+  setActiveFile(target.dataset.fileName || "");
 });
 
 exportButtons.forEach((button) => {

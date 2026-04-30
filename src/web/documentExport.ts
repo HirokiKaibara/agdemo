@@ -8,6 +8,7 @@ import {
 } from "docx";
 
 import type { AnalysisDocumentType, LegacyAnalysisDocument } from "../legacy-analyzer/types.js";
+import { normalizeAnalysisMermaid } from "../legacy-analyzer/mermaidNormalizer.js";
 import { renderDesignHtml, renderIssuesHtml, renderRefactorHtml, renderSpecificationHtml } from "./analysisRenderer.js";
 import { buildPdfHtmlDocument } from "./pdfTemplate.js";
 
@@ -134,6 +135,14 @@ function diagramParagraphs(title: string, diagrams: Array<{ title: string; descr
   return children;
 }
 
+function isRoadmapDiagram(diagram: { title: string }): boolean {
+  return /ロードマップ|roadmap/iu.test(diagram.title);
+}
+
+function getRefactorDisplayDiagrams(analysis: LegacyAnalysisDocument) {
+  return analysis.refactoring.diagrams.filter((diagram) => !isRoadmapDiagram(diagram));
+}
+
 function buildSpecDocxSections(analysis: LegacyAnalysisDocument): Paragraph[] {
   const sections: Paragraph[] = [
     heading("1. 現状仕様書", HeadingLevel.HEADING_1),
@@ -167,12 +176,19 @@ function buildSpecDocxSections(analysis: LegacyAnalysisDocument): Paragraph[] {
   for (const table of analysis.specification.tables) {
     sections.push(heading(table.name, HeadingLevel.HEADING_3));
     sections.push(labelParagraph("用途", table.usage));
-    sections.push(labelParagraph("信頼度", table.confidence));
     sections.push(labelParagraph("備考", table.notes));
-    sections.push(...listParagraphs("カラム候補", table.columns));
+    sections.push(...listParagraphs("検出カラム", table.columns));
   }
 
   sections.push(heading("エンドポイント", HeadingLevel.HEADING_2));
+
+  if (analysis.specification.endpoints.length === 0) {
+    sections.push(
+      paragraph(
+        "HTTP/HTTPS の外部API連携はコードから検出されませんでした。Access、CSV、Excelシートの入出力はエンドポイントには含みません。"
+      )
+    );
+  }
 
   for (const endpoint of analysis.specification.endpoints) {
     sections.push(heading(endpoint.name, HeadingLevel.HEADING_3));
@@ -227,6 +243,7 @@ function buildIssuesDocxSections(analysis: LegacyAnalysisDocument): Paragraph[] 
 }
 
 function buildRefactorDocxSections(analysis: LegacyAnalysisDocument): Paragraph[] {
+  const refactorDiagrams = getRefactorDisplayDiagrams(analysis);
   const sections: Paragraph[] = [
     heading("3. 詳細リファクタリング案", HeadingLevel.HEADING_1),
     labelParagraph("戦略", analysis.refactoring.strategy),
@@ -246,12 +263,15 @@ function buildRefactorDocxSections(analysis: LegacyAnalysisDocument): Paragraph[
     sections.push(...listParagraphs("短所", option.cons));
   }
 
-  sections.push(...diagramParagraphs("Mermaid図", analysis.refactoring.diagrams));
-  sections.push(heading("ロードマップ", HeadingLevel.HEADING_2));
+  if (refactorDiagrams.length > 0) {
+    sections.push(...diagramParagraphs("Mermaid図", refactorDiagrams));
+  }
 
-  for (const phase of analysis.refactoring.roadmap) {
-    sections.push(heading(phase.phase, HeadingLevel.HEADING_3));
-    sections.push(paragraph(phase.objective));
+  sections.push(heading("段階的ロードマップ", HeadingLevel.HEADING_2));
+
+  for (const [index, phase] of analysis.refactoring.roadmap.entries()) {
+    sections.push(heading(`STEP ${index + 1} ${phase.phase}`, HeadingLevel.HEADING_3));
+    sections.push(labelParagraph("目的", phase.objective || "該当なし"));
     sections.push(...listParagraphs("実施タスク", phase.tasks));
     sections.push(...listParagraphs("成果物", phase.outputs));
     sections.push(...listParagraphs("検証観点", phase.validations));
@@ -290,12 +310,19 @@ function buildDesignDocxSections(analysis: LegacyAnalysisDocument): Paragraph[] 
   for (const table of analysis.design.tables) {
     sections.push(heading(table.name, HeadingLevel.HEADING_3));
     sections.push(labelParagraph("用途", table.usage));
-    sections.push(labelParagraph("信頼度", table.confidence));
     sections.push(labelParagraph("備考", table.notes));
-    sections.push(...listParagraphs("カラム候補", table.columns));
+    sections.push(...listParagraphs("検出カラム", table.columns));
   }
 
   sections.push(heading("目標エンドポイント / 外部連携", HeadingLevel.HEADING_2));
+
+  if (analysis.design.endpoints.length === 0) {
+    sections.push(
+      paragraph(
+        "HTTP/HTTPS の外部API連携はコードから検出されませんでした。Access、CSV、Excelシートの入出力はエンドポイントには含みません。"
+      )
+    );
+  }
 
   for (const endpoint of analysis.design.endpoints) {
     sections.push(heading(endpoint.name, HeadingLevel.HEADING_3));
@@ -312,14 +339,15 @@ function buildDesignDocxSections(analysis: LegacyAnalysisDocument): Paragraph[] 
 }
 
 async function buildDocxBuffer(analysis: LegacyAnalysisDocument, documentType: AnalysisDocumentType): Promise<Buffer> {
+  const normalizedAnalysis = normalizeAnalysisMermaid(analysis);
   const children =
     documentType === "spec"
-      ? buildSpecDocxSections(analysis)
+      ? buildSpecDocxSections(normalizedAnalysis)
       : documentType === "issues"
-        ? buildIssuesDocxSections(analysis)
+        ? buildIssuesDocxSections(normalizedAnalysis)
         : documentType === "refactor"
-          ? buildRefactorDocxSections(analysis)
-          : buildDesignDocxSections(analysis);
+          ? buildRefactorDocxSections(normalizedAnalysis)
+          : buildDesignDocxSections(normalizedAnalysis);
 
   const document = new Document({
     styles: {
@@ -420,8 +448,9 @@ async function waitForMermaid(page: {
 }
 
 async function buildPdfBuffer(analysis: LegacyAnalysisDocument, documentType: AnalysisDocumentType): Promise<Buffer> {
+  const normalizedAnalysis = normalizeAnalysisMermaid(analysis);
   const title = getDocumentTitle(documentType);
-  const html = await buildPdfHtmlDocument(title, renderDocumentHtml(analysis, documentType));
+  const html = await buildPdfHtmlDocument(title, renderDocumentHtml(normalizedAnalysis, documentType));
 
   if (pdfEngine === "playwright") {
     const playwright = await importOptionalModule("playwright");

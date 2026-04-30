@@ -77,11 +77,11 @@ async function serveStaticFile(response: ServerResponse, absolutePath: string): 
 }
 
 function normalizeMode(value: unknown): AnalyzerMode {
-  if (value === "gemini" || value === "local-demo" || value === "auto") {
+  if (value === "gemini") {
     return value;
   }
 
-  return "auto";
+  return "gemini";
 }
 
 function normalizeDocumentType(value: unknown): AnalysisDocumentType | null {

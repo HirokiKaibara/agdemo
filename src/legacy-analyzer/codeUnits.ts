@@ -4,6 +4,11 @@ import { AnalyzerError, type AnalyzeRequest, type NormalizedSourceFile, type Pro
 import { buildHash } from "./cacheStore.js";
 
 const procedureHeaderPattern = /^\s*(?:Public|Private|Friend)?\s*(Sub|Function)\s+([^\s(]+)(.*)$/gim;
+const vbNameAttributePattern = /^\s*Attribute\s+VB_Name\s*=\s*"[^"]*"\s*$(?:\r?\n)?/gim;
+
+function normalizeSourceCode(code: string): string {
+  return code.replace(vbNameAttributePattern, "").trim();
+}
 
 export function normalizeSourceFiles(request: AnalyzeRequest): NormalizedSourceFile[] {
   const filesFromRequest = request.files?.filter((file) => file.code.trim()) ?? [];
@@ -11,12 +16,12 @@ export function normalizeSourceFiles(request: AnalyzeRequest): NormalizedSourceF
   if (filesFromRequest.length > 0) {
     return filesFromRequest.map((file) => ({
       fileName: file.fileName,
-      code: file.code,
-      hash: buildHash(file.fileName, file.code)
+      code: normalizeSourceCode(file.code),
+      hash: buildHash(file.fileName, normalizeSourceCode(file.code))
     }));
   }
 
-  const code = request.code?.trim() ?? "";
+  const code = normalizeSourceCode(request.code?.trim() ?? "");
   const sourceName = request.sourceName?.trim() || "uploaded.bas";
 
   if (!code) {

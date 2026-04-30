@@ -1,4 +1,4 @@
-export type AnalyzerMode = "auto" | "gemini" | "local-demo";
+export type AnalyzerMode = "gemini";
 
 export type AnalysisDocumentType = "spec" | "issues" | "refactor" | "design";
 
@@ -190,7 +190,7 @@ export interface AnalyzeRequest {
 export interface AnalyzeResult {
   analysis: LegacyAnalysisDocument;
   rendered?: RenderedDocumentBundle;
-  modeUsed: "gemini" | "local-demo";
+  modeUsed: "gemini";
   sourceName: string;
   notice?: string;
   cache?: {

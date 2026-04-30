@@ -128,10 +128,16 @@ body {
 
 .toolbar-grid {
   display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(220px, 1fr) auto;
+  grid-template-columns: minmax(220px, 1fr) auto;
   gap: 12px;
   align-items: end;
   margin-bottom: 16px;
+}
+
+.toolbar-note {
+  margin: -4px 0 14px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .actions-compact .button {
@@ -256,10 +262,37 @@ textarea {
   align-items: center;
   min-height: 34px;
   padding: 0 12px;
+  border: 0;
   border-radius: 999px;
   background: rgba(36, 56, 72, 0.08);
   color: var(--deep);
+  font: inherit;
   font-size: 13px;
+}
+
+.file-pill {
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.file-pill:hover {
+  background: rgba(36, 56, 72, 0.14);
+  transform: translateY(-1px);
+}
+
+.file-pill.is-active {
+  background: linear-gradient(135deg, rgba(162, 76, 43, 0.92), rgba(124, 53, 25, 0.92));
+  color: #fff8f2;
+  box-shadow: 0 10px 24px rgba(124, 53, 25, 0.2);
+}
+
+.file-pill:focus-visible {
+  outline: 2px solid rgba(162, 76, 43, 0.45);
+  outline-offset: 2px;
 }
 
 .empty-file {
@@ -410,6 +443,398 @@ textarea {
   background: rgba(36, 56, 72, 0.06);
 }
 
+.table-reference-excel {
+  padding: 18px;
+  border: 1px solid #ccd6e2;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.table-reference-header-bar {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.table-reference-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.table-summary-card {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid #d8e1ea;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f8fbff 0%, #eef4fa 100%);
+}
+
+.table-summary-label {
+  color: #5f7284;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.table-summary-card strong {
+  color: #24415d;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.table-reference-toolbar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.table-filter-field {
+  display: grid;
+  gap: 8px;
+}
+
+.table-filter-field span {
+  color: #5f7284;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.table-filter-field input,
+.table-filter-field select {
+  min-height: 42px;
+  border: 1px solid #c7d3df;
+  border-radius: 10px;
+  background: #fff;
+  color: #24313c;
+}
+
+.table-csv-button {
+  min-height: 42px;
+  border-radius: 10px;
+}
+
+.table-reference-scroll {
+  overflow: auto;
+  max-height: 560px;
+  border: 1px solid #cfd8e3;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.table-reference-excel-table {
+  min-width: 980px;
+  margin: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  background: #fff;
+}
+
+.table-reference-excel-table th,
+.table-reference-excel-table td {
+  padding: 11px 12px;
+  border-right: 1px solid #d5dee8;
+  border-bottom: 1px solid #d5dee8;
+  background: #fff;
+  color: #24313c;
+  vertical-align: top;
+}
+
+.document-view .table-reference-excel-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #ffffff !important;
+  color: #31485f;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  background-clip: padding-box;
+  box-shadow: inset 0 -1px 0 #d5dee8;
+  opacity: 1;
+}
+
+.table-reference-excel-table th:first-child,
+.table-reference-excel-table td:first-child {
+  border-left: 1px solid #d5dee8;
+}
+
+.table-reference-row.group-even td {
+  background: #fbfdff;
+}
+
+.table-reference-row.group-odd td {
+  background: #f5f8fc;
+}
+
+.table-merged-cell {
+  background: #eef4fa !important;
+}
+
+.table-name-cell {
+  width: 180px;
+  font-weight: 700;
+  color: #21415b;
+}
+
+.table-usage-column {
+  width: 220px;
+}
+
+.table-confidence-column {
+  width: 110px;
+  text-align: center;
+}
+
+.table-column-order-cell {
+  width: 72px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.table-column-name-cell {
+  width: 240px;
+  font-weight: 700;
+}
+
+.table-notes-cell {
+  width: 240px;
+  color: #56697c;
+}
+
+.table-usage-cell {
+  display: block;
+}
+
+.table-confidence-badge {
+  min-width: 54px;
+  background: #edf2f7;
+  border-color: #cfd9e4;
+  color: #405668;
+}
+
+.table-confidence-badge.confidence-high {
+  background: #dcecff;
+  border-color: #b8d4f2;
+  color: #215f9c;
+}
+
+.table-confidence-badge.confidence-medium {
+  background: #edf3fb;
+  border-color: #cad8ea;
+  color: #4b6782;
+}
+
+.table-confidence-badge.confidence-low {
+  background: #f1f4f7;
+  border-color: #d7dde5;
+  color: #6a7b8a;
+}
+
+.table-usage-text {
+  line-height: 1.65;
+}
+
+.table-reference-empty {
+  margin: 14px 0 0;
+  color: #5f7284;
+  font-size: 13px;
+}
+
+.roadmap-plan {
+  display: grid;
+  gap: 18px;
+}
+
+.roadmap-gantt,
+.roadmap-detail-section {
+  display: grid;
+  gap: 12px;
+}
+
+.roadmap-intro {
+  margin: 0;
+  color: #5f7284;
+  font-size: 13px;
+}
+
+.roadmap-gantt-scroll {
+  overflow-x: auto;
+  border: 1px solid #d9e2ec;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.roadmap-gantt-table {
+  width: max-content;
+  min-width: 100%;
+  margin: 0;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.roadmap-gantt-table th,
+.roadmap-gantt-table td {
+  border: 1px solid #d9e2ec;
+  padding: 12px;
+  vertical-align: top;
+  text-align: left;
+}
+
+.roadmap-gantt-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #334e68;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.roadmap-gantt-phase-band {
+  text-align: center;
+  font-weight: 700;
+  min-width: 360px;
+}
+
+.roadmap-gantt-month {
+  min-width: 120px;
+  text-align: center;
+  background: #e8eff4 !important;
+  color: #243848 !important;
+  font-size: 12px;
+}
+
+.roadmap-gantt-phase-sticky {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 3 !important;
+  min-width: 240px;
+  width: 240px;
+}
+
+.roadmap-gantt-phase-cell {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  min-width: 240px;
+  width: 240px;
+  background: #eef4fb !important;
+}
+
+.roadmap-gantt-phase-cell strong {
+  display: block;
+  margin-top: 10px;
+  color: #243848;
+}
+
+.roadmap-order-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #dcecff;
+  color: #215f9c;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.roadmap-order-caption {
+  display: block;
+  margin-top: 8px;
+  color: #5f7284;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.roadmap-gantt-row.group-even .roadmap-gantt-slot {
+  background: #fbfdff;
+}
+
+.roadmap-gantt-row.group-odd .roadmap-gantt-slot {
+  background: #f5f8fc;
+}
+
+.roadmap-gantt-slot {
+  min-width: 88px;
+  padding: 10px 6px;
+}
+
+.roadmap-gantt-slot.is-active {
+  background: #ecf5ff !important;
+}
+
+.roadmap-gantt-bar {
+  display: block;
+  height: 12px;
+  background: linear-gradient(90deg, #2e7cb7, #49a4df);
+  border-radius: 0;
+}
+
+.roadmap-gantt-slot.is-start .roadmap-gantt-bar {
+  margin-left: 4px;
+  border-top-left-radius: 999px;
+  border-bottom-left-radius: 999px;
+}
+
+.roadmap-gantt-slot.is-end .roadmap-gantt-bar {
+  margin-right: 4px;
+  border-top-right-radius: 999px;
+  border-bottom-right-radius: 999px;
+}
+
+.roadmap-gantt-slot.is-start.is-end .roadmap-gantt-bar {
+  border-radius: 999px;
+}
+
+.roadmap-detail-section > h3 {
+  margin: 0;
+  color: #243848;
+  font-size: 20px;
+}
+
+.roadmap-detail-list {
+  display: grid;
+  gap: 14px;
+}
+
+.roadmap-detail-card {
+  padding: 18px;
+  border: 1px solid rgba(36, 56, 72, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.roadmap-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.roadmap-detail-header h3 {
+  margin: 0;
+}
+
+.roadmap-detail-card section + section {
+  margin-top: 14px;
+}
+
+.roadmap-detail-card section h4 {
+  margin-bottom: 8px;
+}
+
+.roadmap-empty {
+  color: #5f7284;
+}
+
 .document-section + .document-section {
   margin-top: 18px;
 }
@@ -420,6 +845,12 @@ textarea {
 .roadmap-list {
   display: grid;
   gap: 14px;
+}
+
+.table-reference-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
 .function-card,
@@ -439,16 +870,54 @@ textarea {
   gap: 14px;
 }
 
+.table-reference-card {
+  padding: 16px;
+  border: 1px solid rgba(36, 56, 72, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
 .diagram-grid {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
 .diagram-header,
-.issue-header {
+.issue-header,
+.table-reference-header {
   display: flex;
   align-items: start;
   justify-content: space-between;
   gap: 12px;
+}
+
+.table-reference-note {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.table-reference-copy {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.table-reference-copy section {
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(248, 242, 233, 0.7);
+  border: 1px solid rgba(36, 56, 72, 0.08);
+}
+
+.table-column-table {
+  margin-bottom: 0;
+}
+
+.table-column-table th:first-child,
+.table-column-table td:first-child {
+  width: 72px;
+  text-align: center;
 }
 
 .badge-row {
@@ -566,6 +1035,26 @@ textarea {
   border-radius: 16px;
   background: rgba(248, 242, 233, 0.95);
   border: 1px solid rgba(36, 56, 72, 0.08);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.mermaid svg {
+  display: block;
+  width: auto !important;
+  max-width: 94%;
+  min-width: 0;
+  height: auto;
+  margin: 0 auto;
+}
+
+.diagram-grid-specification .mermaid {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.diagram-grid-specification .mermaid svg {
+  max-width: 90%;
 }
 
 .mermaid-source {
@@ -612,9 +1101,32 @@ pre {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .function-grid,
-  .roadmap-grid {
+  .table-reference-summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .table-reference-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .function-grid,
+  .roadmap-grid,
+  .table-reference-copy {
+    grid-template-columns: 1fr;
+  }
+
+  .roadmap-gantt-phase-sticky,
+  .roadmap-gantt-phase-cell {
+    position: static;
+  }
+
+  .roadmap-gantt-table {
+    width: max(100%, 980px);
+  }
+
+  .roadmap-detail-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 

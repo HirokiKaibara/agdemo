@@ -10,6 +10,7 @@ Important:
 - Focus on business behavior and system behavior rather than VBA syntax unless it materially matters.
 - When you mention product or framework versions, present them as candidate versions and explicitly say "要確認" if the source code alone cannot confirm them.
 - Mermaid diagrams must be valid flowchart or graph syntax and easy for business users to follow.
+- Keep Mermaid diagrams at overview level. Prefer roughly 5-8 nodes, and move detailed task lists into text sections instead of the diagram.
 - Return JSON only.
 `.trim();
 
@@ -347,6 +348,7 @@ Summarize one VBA procedure for later document generation.
 - Return JSON that matches the provided schema.
 - Keep each process item concise.
 - If unknown, write "要確認" in notes instead of inventing details.
+- Treat the provided file name as authoritative. Do not replace it with any VBA module metadata name.
 
 # Context
 - File name: ${fileName}
@@ -377,6 +379,7 @@ Create a file-level summary for one legacy VBA file.
 - role should describe the business role of this file.
 - dependencies should list key external dependencies used by the file, such as worksheets, CurrentDb, file system, reports, APIs, or COM components.
 - summary should stay concise and avoid over-claiming.
+- Use the provided file name as-is. Do not substitute a VBA module metadata name.
 
 # File name
 ${fileName}
@@ -408,8 +411,10 @@ Create one project-level JSON that contains:
 - Return JSON that matches the provided schema.
 - Use only the file summaries as the main basis, and be explicit when something is inferred.
 - Make the result useful for a user who wants to understand what to refactor and in what order.
-- Include Mermaid diagrams for the current state, the refactoring roadmap, and the target design.
+- Include Mermaid diagrams for the current state and the target design.
+- Represent the refactoring roadmap in the roadmap array as staged phases. Do not output the refactoring roadmap as a Mermaid diagram.
 - Represent tables, columns, and endpoints in structured arrays when they can be inferred.
+- If the legacy code uses Japanese table names or column names, keep the target design table and column names in Japanese. Do not anglicize schema identifiers unless explicitly requested.
 - For version-related recommendations, provide candidate versions and append "要確認" when the source code alone cannot prove the exact version.
 - Do not omit alternatives. Provide at least 2 alternatives when feasible.
 - Avoid treating uncertain details as confirmed facts.

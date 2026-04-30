@@ -8,7 +8,10 @@ import { GoogleGenAI } from "@google/genai";
 
 import { buildHash, readCachedArtifact, writeCachedArtifact } from "./cacheStore.js";
 import { extractProcedureBlocks, inferProjectName, normalizeSourceFiles } from "./codeUnits.js";
-import { generateLocalDemoAnalysis } from "./localDemoGenerator.js";
+import { localizeDesignSchemaToJapanese } from "./designSchemaLocalizer.js";
+import { applyReadableDiagramOverrides } from "./diagramRefiner.js";
+import { normalizeAnalysisMermaid } from "./mermaidNormalizer.js";
+import { applyCodeTableReferences, extractCodeTableReferences } from "./tableReferenceExtractor.js";
 import {
   COMMON_RULES,
   FILE_SUMMARY_SCHEMA,
@@ -35,12 +38,15 @@ const samplePath = path.join(projectRoot, "samples", "legacy_excel_sales_sample.
 const RETRYABLE_ERROR_PATTERNS = ['"code":503', '"status":"UNAVAILABLE"', "high demand"];
 const DEFAULT_MAIN_MODEL = "gemini-2.5-flash";
 const DEFAULT_LIGHT_MODEL = "gemini-2.5-flash-lite";
-const DEFAULT_PRO_MODEL = "gemini-2.5-pro";
+const DEFAULT_RETRY_ATTEMPTS = 5;
+const DEFAULT_RETRY_BASE_DELAY_MS = 2000;
+const DEFAULT_RETRY_MAX_DELAY_MS = 15000;
 
 interface ModelConfig {
   mainModel: string;
   lightModel: string;
-  proModel: string;
+  proModel?: string;
+  projectModel: string;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -71,12 +77,46 @@ function parseJsonResponse<T>(text: string): T {
   return JSON.parse(normalizeJsonText(text)) as T;
 }
 
+function readOptionalEnv(name: string): string | undefined {
+  const value = process.env[name]?.trim();
+  return value ? value : undefined;
+}
+
+function parsePositiveIntegerEnv(name: string, fallback: number): number {
+  const rawValue = process.env[name]?.trim();
+
+  if (!rawValue) {
+    return fallback;
+  }
+
+  const parsedValue = Number(rawValue);
+  return Number.isInteger(parsedValue) && parsedValue > 0 ? parsedValue : fallback;
+}
+
 function getModelConfig(): ModelConfig {
+  const mainModel = process.env.GEMINI_MAIN_MODEL ?? process.env.GEMINI_MODEL ?? DEFAULT_MAIN_MODEL;
+  const lightModel = process.env.GEMINI_LIGHT_MODEL ?? DEFAULT_LIGHT_MODEL;
+  const proModel = readOptionalEnv("GEMINI_PRO_MODEL");
+  const projectModel = readOptionalEnv("GEMINI_PROJECT_MODEL") ?? mainModel;
+
   return {
-    mainModel: process.env.GEMINI_MAIN_MODEL ?? process.env.GEMINI_MODEL ?? DEFAULT_MAIN_MODEL,
-    lightModel: process.env.GEMINI_LIGHT_MODEL ?? DEFAULT_LIGHT_MODEL,
-    proModel: process.env.GEMINI_PRO_MODEL ?? DEFAULT_PRO_MODEL
+    mainModel,
+    lightModel,
+    proModel,
+    projectModel
   };
+}
+
+function calculateRetryDelay(attempt: number): number {
+  const baseDelay = parsePositiveIntegerEnv("GEMINI_RETRY_BASE_DELAY_MS", DEFAULT_RETRY_BASE_DELAY_MS);
+  const maxDelay = parsePositiveIntegerEnv("GEMINI_RETRY_MAX_DELAY_MS", DEFAULT_RETRY_MAX_DELAY_MS);
+  const exponentialDelay = Math.min(baseDelay * 2 ** (attempt - 1), maxDelay);
+  const jitter = Math.floor(Math.random() * 500);
+  return exponentialDelay + jitter;
+}
+
+function uniqueModels(models: Array<string | undefined>): string[] {
+  return [...new Set(models.map((model) => model?.trim()).filter(Boolean) as string[])];
 }
 
 async function generateJsonWithRetry<T>(
@@ -85,7 +125,7 @@ async function generateJsonWithRetry<T>(
   prompt: string,
   schema: object
 ): Promise<T> {
-  const maxAttempts = 2;
+  const maxAttempts = parsePositiveIntegerEnv("GEMINI_RETRY_MAX_ATTEMPTS", DEFAULT_RETRY_ATTEMPTS);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
@@ -119,16 +159,43 @@ async function generateJsonWithRetry<T>(
         throw new AnalyzerError(`Gemini API の解析に失敗しました。${message}`, 502);
       }
 
-      await sleep(attempt * 1500);
+      await sleep(calculateRetryDelay(attempt));
     }
   }
 
   throw new AnalyzerError("Gemini API の解析に失敗しました。", 502);
 }
 
+async function generateJsonWithModelFallback<T>(
+  ai: GoogleGenAI,
+  models: string[],
+  prompt: string,
+  schema: object
+): Promise<{ data: T; usedModel: string }> {
+  let lastError: unknown;
+
+  for (const model of uniqueModels(models)) {
+    try {
+      const data = await generateJsonWithRetry<T>(ai, model, prompt, schema);
+      return {
+        data,
+        usedModel: model
+      };
+    } catch (error) {
+      lastError = error;
+
+      if (!isRetryableError(error)) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new AnalyzerError("Gemini API の解析に失敗しました。", 502);
+}
+
 async function summarizeProcedure(
   ai: GoogleGenAI,
-  model: string,
+  models: string[],
   fileName: string,
   procedureName: string,
   procedureCode: string,
@@ -141,12 +208,17 @@ async function summarizeProcedure(
   }
 
   const prompt = buildFunctionSummaryPrompt(fileName, procedureName, procedureCode);
-  const data = await generateJsonWithRetry<LegacyFunctionSummary>(ai, model, prompt, FUNCTION_SUMMARY_SCHEMA);
+  const { data, usedModel } = await generateJsonWithModelFallback<LegacyFunctionSummary>(
+    ai,
+    models,
+    prompt,
+    FUNCTION_SUMMARY_SCHEMA
+  );
 
   const artifact: CachedArtifact<LegacyFunctionSummary> = {
     hash,
     createdAt: new Date().toISOString(),
-    model,
+    model: usedModel,
     data
   };
   await writeCachedArtifact("function-summaries", artifact);
@@ -156,7 +228,7 @@ async function summarizeProcedure(
 
 async function summarizeFile(
   ai: GoogleGenAI,
-  model: string,
+  models: string[],
   fileName: string,
   fileCode: string,
   fileHash: string,
@@ -169,12 +241,17 @@ async function summarizeFile(
   }
 
   const prompt = buildFileSummaryPrompt(fileName, fileCode, functionSummaries);
-  const data = await generateJsonWithRetry<LegacyFileSummary>(ai, model, prompt, FILE_SUMMARY_SCHEMA);
+  const { data, usedModel } = await generateJsonWithModelFallback<LegacyFileSummary>(
+    ai,
+    models,
+    prompt,
+    FILE_SUMMARY_SCHEMA
+  );
 
   const artifact: CachedArtifact<LegacyFileSummary> = {
     hash: fileHash,
     createdAt: new Date().toISOString(),
-    model,
+    model: usedModel,
     data
   };
   await writeCachedArtifact("file-summaries", artifact);
@@ -184,10 +261,10 @@ async function summarizeFile(
 
 async function buildProjectAnalysis(
   ai: GoogleGenAI,
-  model: string,
+  models: string[],
   projectName: string,
   fileSummaries: LegacyFileSummary[]
-): Promise<{ analysis: LegacyAnalysisDocument; hash: string; reused: boolean }> {
+): Promise<{ analysis: LegacyAnalysisDocument; hash: string; reused: boolean; usedModel: string }> {
   const projectHash = buildHash(projectName, JSON.stringify(fileSummaries));
   const cached = await readCachedArtifact<LegacyAnalysisDocument>("project-analyses", projectHash);
 
@@ -195,14 +272,15 @@ async function buildProjectAnalysis(
     return {
       analysis: cached.data,
       hash: projectHash,
-      reused: true
+      reused: true,
+      usedModel: cached.model
     };
   }
 
   const prompt = buildProjectAnalysisPrompt(projectName, fileSummaries);
-  const analysis = await generateJsonWithRetry<LegacyAnalysisDocument>(
+  const { data: analysis, usedModel } = await generateJsonWithModelFallback<LegacyAnalysisDocument>(
     ai,
-    model,
+    models,
     prompt,
     PROJECT_ANALYSIS_SCHEMA
   );
@@ -210,7 +288,7 @@ async function buildProjectAnalysis(
   const artifact: CachedArtifact<LegacyAnalysisDocument> = {
     hash: projectHash,
     createdAt: new Date().toISOString(),
-    model,
+    model: usedModel,
     data: analysis
   };
   await writeCachedArtifact("project-analyses", artifact);
@@ -218,7 +296,8 @@ async function buildProjectAnalysis(
   return {
     analysis,
     hash: projectHash,
-    reused: false
+    reused: false,
+    usedModel
   };
 }
 
@@ -233,6 +312,13 @@ async function generateWithGemini(request: AnalyzeRequest): Promise<AnalyzeResul
   const projectName = inferProjectName(files, request.projectName);
   const modelConfig = getModelConfig();
   const ai = new GoogleGenAI({ apiKey });
+  const functionModelCandidates = uniqueModels([modelConfig.lightModel, modelConfig.mainModel]);
+  const fileModelCandidates = uniqueModels([modelConfig.mainModel, modelConfig.lightModel]);
+  const projectModelCandidates = uniqueModels([
+    modelConfig.projectModel,
+    modelConfig.mainModel,
+    modelConfig.lightModel
+  ]);
 
   const fileSummaries: LegacyFileSummary[] = [];
 
@@ -243,7 +329,7 @@ async function generateWithGemini(request: AnalyzeRequest): Promise<AnalyzeResul
     for (const procedure of procedures) {
       const summary = await summarizeProcedure(
         ai,
-        modelConfig.lightModel,
+        functionModelCandidates,
         file.fileName,
         procedure.name,
         procedure.code,
@@ -254,7 +340,7 @@ async function generateWithGemini(request: AnalyzeRequest): Promise<AnalyzeResul
 
     const fileSummary = await summarizeFile(
       ai,
-      modelConfig.mainModel,
+      fileModelCandidates,
       file.fileName,
       file.code,
       file.hash,
@@ -263,12 +349,16 @@ async function generateWithGemini(request: AnalyzeRequest): Promise<AnalyzeResul
     fileSummaries.push(fileSummary);
   }
 
-  const projectModel = modelConfig.proModel || modelConfig.mainModel;
-  const project = await buildProjectAnalysis(ai, projectModel, projectName, fileSummaries);
+  const project = await buildProjectAnalysis(ai, projectModelCandidates, projectName, fileSummaries);
   const primarySource = files[0]?.fileName ?? request.sourceName ?? "uploaded.bas";
+  const readableAnalysis = applyReadableDiagramOverrides(project.analysis);
+  const normalizedAnalysis = normalizeAnalysisMermaid(readableAnalysis);
+  const localizedDesignAnalysis = localizeDesignSchemaToJapanese(normalizedAnalysis);
+  const codeTableReferences = extractCodeTableReferences(files);
+  const analysisWithCodeTables = applyCodeTableReferences(localizedDesignAnalysis, codeTableReferences);
 
   return {
-    analysis: project.analysis,
+    analysis: analysisWithCodeTables,
     modeUsed: "gemini",
     sourceName: primarySource,
     cache: {
@@ -277,54 +367,13 @@ async function generateWithGemini(request: AnalyzeRequest): Promise<AnalyzeResul
     },
     modelUsage: {
       ...modelConfig,
-      projectModel
-    }
-  };
-}
-
-function generateLocalResult(request: AnalyzeRequest, notice?: string): AnalyzeResult {
-  const files = normalizeSourceFiles(request);
-  const projectName = inferProjectName(files, request.projectName);
-  const analysis = generateLocalDemoAnalysis(files, projectName);
-  const primarySource = files[0]?.fileName ?? request.sourceName ?? "uploaded.bas";
-
-  return {
-    analysis,
-    modeUsed: "local-demo",
-    sourceName: primarySource,
-    notice,
-    cache: {
-      projectHash: buildHash(projectName, JSON.stringify(files.map((file) => file.hash))),
-      reused: false
-    },
-    modelUsage: {
-      ...getModelConfig(),
-      projectModel: "local-demo"
+      projectModel: project.usedModel
     }
   };
 }
 
 export async function analyzeLegacyCode(request: AnalyzeRequest): Promise<AnalyzeResult> {
-  const mode = request.mode ?? "auto";
-
-  if (mode === "local-demo") {
-    return generateLocalResult(request, "Gemini API を使わず、ローカル簡易解析で生成しました。");
-  }
-
-  if (mode === "gemini") {
-    return generateWithGemini(request);
-  }
-
-  try {
-    return await generateWithGemini(request);
-  } catch (error) {
-    const notice =
-      error instanceof Error
-        ? `Gemini API が利用できなかったため、ローカル簡易解析へ切り替えました。${error.message}`
-        : "Gemini API が利用できなかったため、ローカル簡易解析へ切り替えました。";
-
-    return generateLocalResult(request, notice);
-  }
+  return generateWithGemini(request);
 }
 
 export async function loadSampleLegacyCode(): Promise<string> {

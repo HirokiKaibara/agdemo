@@ -32,19 +32,12 @@
 
           <div class="toolbar toolbar-grid">
             <label class="field">
-              <span>実行モード</span>
-              <select id="mode-select">
-                <option value="local-demo" selected>ローカル簡易解析のみ</option>
-                <option value="auto">自動: Gemini優先 / 失敗時はローカル簡易解析</option>
-                <option value="gemini">Gemini APIのみ</option>
-              </select>
-            </label>
-            <label class="field">
               <span>案件名 / システム名</span>
               <input id="project-name-input" type="text" placeholder="例: 販売管理Access改修">
             </label>
             <button id="analyze-button" class="button button-primary button-large" type="button">解析を実行</button>
           </div>
+          <p class="toolbar-note">解析は常に Gemini API を使用します。ファイルを再選択すると既存一覧へ追加され、同名ファイルは差し替えます。複数選択時は上部のファイル名クリックで表示を切り替えられます。</p>
 
           <div class="file-state">
             <p id="source-text" class="source-text">入力: コード貼り付けモード</p>
@@ -54,7 +47,7 @@
           </div>
 
           <label class="field">
-            <span>入力コード / 複数ファイル時のプレビュー</span>
+            <span>入力コード / 選択中ファイルの内容</span>
             <textarea id="code-input" spellcheck="false" placeholder="ここにVBAコードを貼り付けるか、ファイルを読み込んでください。"></textarea>
           </label>
         </section>

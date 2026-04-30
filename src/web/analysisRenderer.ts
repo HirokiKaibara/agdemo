@@ -5,6 +5,7 @@ import type {
   LegacyFileSummary,
   LegacyFunctionSummary,
   LegacyIssue,
+  LegacyRefactorPhase,
   LegacyTableReference,
   RenderedDocumentBundle
 } from "../legacy-analyzer/types.js";
@@ -87,6 +88,142 @@ function renderPriorityBadge(priority: LegacyIssue["priority"]): string {
   return renderBadge(label, priority);
 }
 
+function renderConfidenceBadge(confidence: LegacyTableReference["confidence"]): string {
+  const label = confidence === "high" ? "高" : confidence === "medium" ? "中" : "低";
+  return renderBadge(`信頼度 ${label}`, confidence);
+}
+
+function escapeAttribute(value: string): string {
+  return escapeHtml(value).replaceAll("`", "&#96;");
+}
+
+function extractUsageOperations(usage: string): string[] {
+  const operations: Array<{ pattern: RegExp; label: string }> = [
+    { pattern: /(?:\bINSERT\b|レコード追加|(?<!レコード)追加)/iu, label: "レコード追加" },
+    { pattern: /(?:\bUPDATE\b|レコード更新|(?<!レコード)更新)/iu, label: "レコード更新" },
+    { pattern: /(?:\bDELETE\b|レコード削除|(?<!レコード)削除)/iu, label: "レコード削除" },
+    { pattern: /(?:\bSELECT\b|データ参照|(?<!データ)参照)/iu, label: "データ参照" }
+  ];
+
+  return operations.filter((operation) => operation.pattern.test(usage)).map((operation) => operation.label);
+}
+
+function localizeUsageText(usage: string): string {
+  return usage
+    .replace(/\bINSERT\b/giu, "レコード追加")
+    .replace(/\bUPDATE\b/giu, "レコード更新")
+    .replace(/\bDELETE\b/giu, "レコード削除")
+    .replace(/\bSELECT\b/giu, "データ参照")
+    .replace(/(^|[\s/])追加(?=([\s/]|に|で|を|$))/gu, "$1レコード追加")
+    .replace(/(^|[\s/])更新(?=([\s/]|に|で|を|$))/gu, "$1レコード更新")
+    .replace(/(^|[\s/])削除(?=([\s/]|に|で|を|$))/gu, "$1レコード削除")
+    .replace(/(^|[\s/])参照(?=([\s/]|に|で|を|$))/gu, "$1データ参照");
+}
+
+function renderUsageCell(usage: string): string {
+  const localizedUsage = localizeUsageText(usage || "要確認");
+
+  return `
+    <div class="table-usage-cell">
+      <span class="table-usage-text">${escapeHtml(localizedUsage)}</span>
+    </div>
+  `.trim();
+}
+
+function renderTableReferenceExcelView(
+  tables: LegacyTableReference[],
+  sectionKey: "specification" | "design"
+): string {
+  if (tables.length === 0) {
+    return `<p class="empty-value">該当なし</p>`;
+  }
+
+  const totalColumns = tables.reduce((sum, table) => sum + Math.max(table.columns.length, 1), 0);
+  const rows = tables.flatMap((table, tableIndex) => {
+    const columns = table.columns.length > 0 ? table.columns : ["要確認"];
+    const groupTone = tableIndex % 2 === 0 ? "group-even" : "group-odd";
+
+    return columns.map((columnName, columnIndex) => ({
+      tableName: table.name,
+      usage: table.usage || "要確認",
+      usageDisplay: localizeUsageText(table.usage || "要確認"),
+      columnOrder: columnIndex + 1,
+      columnName,
+      notes: table.notes || "要確認",
+      rowSpan: columns.length,
+      isFirstRow: columnIndex === 0,
+      groupTone
+    }));
+  });
+
+  return `
+    <div
+      class="table-reference-excel"
+      data-table-reference-root
+      data-section-key="${escapeAttribute(sectionKey)}"
+    >
+      <div class="table-reference-header-bar">
+        <div class="table-reference-summary-grid">
+          <article class="table-summary-card">
+            <span class="table-summary-label">抽出テーブル数</span>
+            <strong data-summary-tables>${tables.length}</strong>
+          </article>
+          <article class="table-summary-card">
+            <span class="table-summary-label">抽出カラム数</span>
+            <strong data-summary-columns>${totalColumns}</strong>
+          </article>
+        </div>
+      </div>
+      <div class="table-reference-scroll" data-table-scroll>
+        <table class="table-reference-excel-table">
+          <thead>
+            <tr>
+              <th>テーブル名</th>
+              <th>用途</th>
+              <th>列順</th>
+              <th>カラム名</th>
+              <th>備考</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows
+              .map(
+                (row) => `
+                  <tr
+                    class="table-reference-row ${row.groupTone}"
+                    data-table-reference-row
+                    data-table-name="${escapeAttribute(row.tableName)}"
+                    data-usage="${escapeAttribute(row.usageDisplay)}"
+                    data-column-order="${escapeAttribute(String(row.columnOrder))}"
+                    data-column-name="${escapeAttribute(row.columnName)}"
+                    data-notes="${escapeAttribute(row.notes)}"
+                  >
+                    ${
+                      row.isFirstRow
+                        ? `
+                          <td rowspan="${row.rowSpan}" class="table-merged-cell table-name-cell">${escapeHtml(row.tableName)}</td>
+                          <td rowspan="${row.rowSpan}" class="table-merged-cell table-usage-column">${renderUsageCell(row.usage)}</td>
+                        `.trim()
+                        : ""
+                    }
+                    <td class="table-column-order-cell">${escapeHtml(String(row.columnOrder))}</td>
+                    <td class="table-column-name-cell">${escapeHtml(row.columnName)}</td>
+                    ${
+                      row.isFirstRow
+                        ? `<td rowspan="${row.rowSpan}" class="table-merged-cell table-notes-cell">${escapeHtml(row.notes)}</td>`
+                        : ""
+                    }
+                  </tr>
+                `
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `.trim();
+}
+
 function renderDiagram(diagram: LegacyDiagram): string {
   return `
     <article class="diagram-card">
@@ -104,12 +241,153 @@ function renderDiagram(diagram: LegacyDiagram): string {
   `.trim();
 }
 
-function renderDiagramSection(diagrams: LegacyDiagram[]): string {
+function renderDiagramSection(
+  diagrams: LegacyDiagram[],
+  scope: "default" | "specification" | "refactor" | "design" = "default"
+): string {
   if (diagrams.length === 0) {
     return `<p class="empty-value">図はありません。</p>`;
   }
 
-  return `<div class="diagram-grid">${diagrams.map((diagram) => renderDiagram(diagram)).join("")}</div>`;
+  const scopeClass = scope === "default" ? "" : ` diagram-grid-${scope}`;
+  return `<div class="diagram-grid${scopeClass}" data-diagram-scope="${escapeAttribute(scope)}">${diagrams
+    .map((diagram) => renderDiagram(diagram))
+    .join("")}</div>`;
+}
+
+function isRoadmapDiagram(diagram: LegacyDiagram): boolean {
+  return /ロードマップ|roadmap/iu.test(diagram.title);
+}
+
+function getRefactorDisplayDiagrams(analysis: LegacyAnalysisDocument): LegacyDiagram[] {
+  return analysis.refactoring.diagrams.filter((diagram) => !isRoadmapDiagram(diagram));
+}
+
+type RoadmapSchedule = {
+  phase: LegacyRefactorPhase;
+  phaseIndex: number;
+  startSlot: number;
+  endSlot: number;
+  span: number;
+  groupTone: "group-even" | "group-odd";
+};
+
+function buildRoadmapSchedules(phases: LegacyRefactorPhase[]): RoadmapSchedule[] {
+  let cursor = 1;
+
+  return phases.map((phase, phaseIndex) => {
+    const phaseLoad = Math.max(
+      1,
+      phase.tasks.length + phase.outputs.length + phase.validations.length + Math.ceil(phase.risks.length / 2)
+    );
+    const span = Math.max(1, Math.min(3, Math.ceil(phaseLoad / 4)));
+    const startSlot = cursor;
+    const endSlot = startSlot + span - 1;
+    cursor = endSlot + 1;
+
+    return {
+      phase,
+      phaseIndex,
+      startSlot,
+      endSlot,
+      span,
+      groupTone: phaseIndex % 2 === 0 ? "group-even" : "group-odd"
+    };
+  });
+}
+
+function renderRoadmapTimeline(phases: LegacyRefactorPhase[]): string {
+  const schedules = buildRoadmapSchedules(phases);
+  const totalSlots = schedules.at(-1)?.endSlot ?? 0;
+  const months = Array.from({ length: totalSlots }, (_, index) => `${index + 1}か月目`);
+
+  return `
+    <div class="roadmap-gantt">
+      <p class="roadmap-intro">開始時点を1か月目として表示した目安です。フェーズ順と作業量をもとに期間バーを自動整形しています。</p>
+      <div class="roadmap-gantt-scroll">
+        <table class="roadmap-gantt-table">
+          <thead>
+            <tr>
+              <th class="roadmap-gantt-phase-sticky">フェーズ</th>
+              ${months.map((month) => `<th class="roadmap-gantt-month">${escapeHtml(month)}</th>`).join("")}
+            </tr>
+          </thead>
+          <tbody>
+            ${schedules
+              .map((schedule) =>
+                `
+                  <tr class="roadmap-gantt-row ${schedule.groupTone}">
+                    <td class="roadmap-gantt-phase-cell">
+                      <span class="roadmap-order-badge">STEP ${schedule.phaseIndex + 1}</span>
+                      <strong>${escapeHtml(schedule.phase.phase)}</strong>
+                      <span class="roadmap-order-caption">${escapeHtml(schedule.phase.objective || "該当なし")}</span>
+                    </td>
+                    ${months
+                      .map((_, monthIndex) => {
+                        const slot = monthIndex + 1;
+                        const isActive = slot >= schedule.startSlot && slot <= schedule.endSlot;
+
+                        if (!isActive) {
+                          return `<td class="roadmap-gantt-slot"></td>`;
+                        }
+
+                        const barClasses = [
+                          "roadmap-gantt-slot",
+                          "is-active",
+                          slot === schedule.startSlot ? "is-start" : "",
+                          slot === schedule.endSlot ? "is-end" : ""
+                        ]
+                          .filter(Boolean)
+                          .join(" ");
+
+                        return `<td class="${barClasses}"><span class="roadmap-gantt-bar" aria-hidden="true"></span></td>`;
+                      })
+                      .join("")}
+                  </tr>
+                `
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `.trim();
+}
+
+function renderRoadmapDetails(phases: LegacyRefactorPhase[]): string {
+  return `
+    <div class="roadmap-detail-list">
+      ${phases
+        .map(
+          (phase, index) => `
+            <article class="roadmap-detail-card">
+              <div class="roadmap-detail-header">
+                <span class="roadmap-order-badge">STEP ${index + 1}</span>
+                <h3>${escapeHtml(phase.phase)}</h3>
+              </div>
+              ${renderParagraph(phase.objective || "該当なし")}
+              <section>
+                <h4>実施タスク</h4>
+                ${renderList(phase.tasks)}
+              </section>
+              <section>
+                <h4>成果物</h4>
+                ${renderList(phase.outputs)}
+              </section>
+              <section>
+                <h4>確認ポイント</h4>
+                ${renderList(phase.validations)}
+              </section>
+              <section>
+                <h4>主なリスク</h4>
+                ${renderList(phase.risks)}
+              </section>
+            </article>
+          `
+        )
+        .join("")}
+    </div>
+  `.trim();
 }
 
 function renderFunctionCard(fn: LegacyFunctionSummary): string {
@@ -186,7 +464,7 @@ function renderFlowTable(analysis: LegacyAnalysisDocument): string {
 
 function renderTableReferences(tables: LegacyTableReference[]): string {
   return renderTable(
-    ["テーブル", "カラム候補", "用途", "信頼度", "備考"],
+    ["テーブル", "検出カラム", "用途", "信頼度", "備考"],
     tables.map((table) => [
       table.name,
       table.columns.join(" / ") || "要確認",
@@ -197,7 +475,74 @@ function renderTableReferences(tables: LegacyTableReference[]): string {
   );
 }
 
+function renderColumnMatrixTable(columns: string[]): string {
+  const normalizedColumns = columns.length > 0 ? columns : ["要確認"];
+
+  return `
+    <table class="table-column-table">
+      <thead>
+        <tr><th>列順</th><th>列名</th></tr>
+      </thead>
+      <tbody>
+        ${normalizedColumns
+          .map(
+            (column, index) => `<tr><td>${escapeHtml(String(index + 1))}</td><td>${escapeHtml(column)}</td></tr>`
+          )
+          .join("")}
+      </tbody>
+    </table>
+  `.trim();
+}
+
+function renderTableReferenceCards(tables: LegacyTableReference[]): string {
+  if (tables.length === 0) {
+    return `<p class="empty-value">隧ｲ蠖薙↑縺・/p>`;
+  }
+
+  return `
+    <p class="table-reference-note">
+      SQL 文字列などコード上の記述から検出した列一覧です。型、主キー、NULL 制約などはコードだけでは確定できない場合があります。
+    </p>
+    <div class="table-reference-grid">
+      ${tables
+        .map(
+          (table) => `
+            <article class="table-reference-card">
+              <div class="table-reference-header">
+                <h3>${escapeHtml(table.name)}</h3>
+                ${renderConfidenceBadge(table.confidence)}
+              </div>
+              <div class="table-reference-copy">
+                <section>
+                  <h4>用途</h4>
+                  ${renderParagraph(table.usage || "要確認")}
+                </section>
+                <section>
+                  <h4>備考</h4>
+                  ${renderParagraph(table.notes || "要確認")}
+                </section>
+              </div>
+              <section>
+                <h4>列一覧</h4>
+                ${renderColumnMatrixTable(table.columns)}
+              </section>
+            </article>
+          `
+        )
+        .join("")}
+    </div>
+  `.trim();
+}
+
 function renderEndpointReferences(endpoints: LegacyEndpointReference[]): string {
+  if (endpoints.length === 0) {
+    return `
+      <p class="empty-value">
+        HTTP/HTTPS の外部API連携はコードから検出されませんでした。Access、CSV、Excelシートの入出力はエンドポイントには含みません。
+      </p>
+    `.trim();
+  }
+
   return renderTable(
     ["名前", "メソッド", "パス / URL", "用途", "信頼度"],
     endpoints.map((endpoint) => [
@@ -288,40 +633,19 @@ function renderRefactorAlternatives(analysis: LegacyAnalysisDocument): string {
 }
 
 function renderRoadmap(analysis: LegacyAnalysisDocument): string {
-  if (analysis.refactoring.roadmap.length === 0) {
+  const phases = analysis.refactoring.roadmap;
+
+  if (phases.length === 0) {
     return `<p class="empty-value">ロードマップはありません。</p>`;
   }
 
   return `
-    <div class="roadmap-list">
-      ${analysis.refactoring.roadmap
-        .map(
-          (phase) => `
-            <article class="roadmap-card">
-              <h3>${escapeHtml(phase.phase)}</h3>
-              ${renderParagraph(phase.objective)}
-              <div class="roadmap-grid">
-                <section>
-                  <h4>実施タスク</h4>
-                  ${renderList(phase.tasks)}
-                </section>
-                <section>
-                  <h4>成果物</h4>
-                  ${renderList(phase.outputs)}
-                </section>
-                <section>
-                  <h4>検証観点</h4>
-                  ${renderList(phase.validations)}
-                </section>
-                <section>
-                  <h4>リスク</h4>
-                  ${renderList(phase.risks)}
-                </section>
-              </div>
-            </article>
-          `
-        )
-        .join("")}
+    <div class="roadmap-plan">
+      ${renderRoadmapTimeline(phases)}
+      <div class="roadmap-detail-section">
+        <h3>フェーズ詳細</h3>
+        ${renderRoadmapDetails(phases)}
+      </div>
     </div>
   `.trim();
 }
@@ -384,11 +708,11 @@ function renderSpecificationHtml(analysis: LegacyAnalysisDocument): string {
       </section>
       <section class="document-section">
         <h2>Mermaid図</h2>
-        ${renderDiagramSection(analysis.specification.diagrams)}
+        ${renderDiagramSection(analysis.specification.diagrams, "specification")}
       </section>
       <section class="document-section">
         <h2>テーブル / カラム</h2>
-        ${renderTableReferences(analysis.specification.tables)}
+        ${renderTableReferenceExcelView(analysis.specification.tables, "specification")}
       </section>
       <section class="document-section">
         <h2>エンドポイント</h2>
@@ -440,6 +764,8 @@ function renderIssuesHtml(analysis: LegacyAnalysisDocument): string {
 }
 
 function renderRefactorHtml(analysis: LegacyAnalysisDocument): string {
+  const refactorDiagrams = getRefactorDisplayDiagrams(analysis);
+
   return `
     <div class="document-view">
       <section class="document-section">
@@ -457,10 +783,16 @@ function renderRefactorHtml(analysis: LegacyAnalysisDocument): string {
         <h2>代替案と候補バージョン</h2>
         ${renderRefactorAlternatives(analysis)}
       </section>
-      <section class="document-section">
-        <h2>Mermaid図</h2>
-        ${renderDiagramSection(analysis.refactoring.diagrams)}
-      </section>
+      ${
+        refactorDiagrams.length > 0
+          ? `
+            <section class="document-section">
+              <h2>Mermaid図</h2>
+              ${renderDiagramSection(refactorDiagrams, "refactor")}
+            </section>
+          `
+          : ""
+      }
       <section class="document-section">
         <h2>段階的ロードマップ</h2>
         ${renderRoadmap(analysis)}
@@ -489,7 +821,7 @@ function renderDesignHtml(analysis: LegacyAnalysisDocument): string {
       </section>
       <section class="document-section">
         <h2>Mermaid図</h2>
-        ${renderDiagramSection(analysis.design.diagrams)}
+        ${renderDiagramSection(analysis.design.diagrams, "design")}
       </section>
       <section class="document-section">
         <h2>目標モジュール設計</h2>
@@ -501,7 +833,7 @@ function renderDesignHtml(analysis: LegacyAnalysisDocument): string {
       </section>
       <section class="document-section">
         <h2>目標テーブル / カラム設計メモ</h2>
-        ${renderTableReferences(analysis.design.tables)}
+        ${renderTableReferenceExcelView(analysis.design.tables, "design")}
       </section>
       <section class="document-section">
         <h2>目標エンドポイント / 外部連携</h2>
@@ -510,10 +842,6 @@ function renderDesignHtml(analysis: LegacyAnalysisDocument): string {
       <section class="document-section">
         <h2>設計上のリスク</h2>
         ${renderList(analysis.design.risks)}
-      </section>
-      <section class="document-section">
-        <h2>現行ファイルとの対応</h2>
-        ${renderFileInventoryTable(analysis)}
       </section>
     </div>
   `.trim();

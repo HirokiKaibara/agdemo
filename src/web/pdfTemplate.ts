@@ -73,7 +73,17 @@ export async function buildPdfHtmlDocument(title: string, bodyHtml: string): Pro
                 startOnLoad: false,
                 securityLevel: "loose",
                 theme: "neutral",
-                flowchart: { useMaxWidth: true, htmlLabels: true }
+                flowchart: { useMaxWidth: true, htmlLabels: true },
+                gantt: {
+                  leftPadding: 180,
+                  rightPadding: 32,
+                  gridLineStartPadding: 160,
+                  topPadding: 48,
+                  barHeight: 26,
+                  barGap: 8,
+                  fontSize: 13,
+                  sectionFontSize: 13
+                }
               });
               await globalThis.mermaid.run({ nodes });
             } catch (error) {

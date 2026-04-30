@@ -1,5 +1,3 @@
-Attribute VB_Name = "SalesLegacyModule"
-
 Public gTargetMonth As String
 Public gTaxRate As Double
 Public gOutPath As String

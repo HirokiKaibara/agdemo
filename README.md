@@ -17,10 +17,7 @@ Excel VBA / Access VBA のコードを読み取り、Gemini で中間JSONを生�
 ## 現在できること
 - `.bas` `.cls` `.frm` `.txt` ファイルの読込
 - 画面上への VBA コード貼り付け
-- 実行モードの切替
-- `ローカル簡易解析のみ`
-- `自動: Gemini優先 / 失敗時はローカル簡易解析`
-- `Gemini APIのみ`
+- Gemini API による解析
 - Gemini の中間JSON生成
 - 中間JSONからの簡易仕様書HTML表示
 - 中間JSONからの簡易設計書HTML表示
@@ -56,26 +53,24 @@ Excel VBA / Access VBA のコードを読み取り、Gemini で中間JSONを生�
 ## Gemini モデル方針
 - 通常処理の既定モデルは `Gemini 2.5 Flash`
 - 軽量な関数要約用モデルは `Gemini 2.5 Flash-Lite`
-- `Gemini 2.5 Pro` は環境変数で指定可能ですが、通常処理では使いません
+- プロジェクト統合解析は既定で `GEMINI_MAIN_MODEL` を使います
+- `Gemini 2.5 Pro` を使いたい場合だけ `GEMINI_PROJECT_MODEL` で明示指定します
 
 ## 429 / 無料枠対策
 - 1回のリクエストでコード全文を毎回投げ直さない構成です。
 - 同じコード内容ならキャッシュ済みJSONを再利用します。
-- Gemini の利用制限に達した場合は、`gemini` モードではエラーメッセージを返し、`auto` モードではローカル簡易解析へ切り替えます。
-- 自動リトライは最大2回までです。
+- Gemini の利用制限に達した場合は、エラーメッセージを返します。
+- 一時的な `503 high demand` に対しては指数バックオフ付きで自動リトライします。
+- それでも `503` が続く場合は、同系統の軽いモデルへ順次フォールバックして完走率を上げます。
 
 ## 画面の使い方
 1. `npm run dev:web` を実行します。
 2. ブラウザで `http://localhost:3000` を開きます。
 3. `ファイル読込` で VBA ファイルを読み込むか、入力欄へコードを貼り付けます。
-4. 必要に応じて実行モードを選びます。
+4. 必要に応じて案件名 / システム名を入力します。
 5. `解析を実行` を押します。
 6. 生成された簡易仕様書 / 簡易設計書を確認します。
 7. 必要なら `PDF` または `Word` をダウンロードします。
-
-補足:
-- 初期選択モードは `ローカル簡易解析のみ` です。
-- Gemini を実際に使う場合は `自動` か `Gemini APIのみ` を選んでください。
 
 ## 起動仕様
 - 既定ポートは `3000` です。
@@ -89,7 +84,17 @@ Excel VBA / Access VBA のコードを読み取り、Gemini で中間JSONを生�
 - `GEMINI_LIGHT_MODEL`
   - 既定値: `gemini-2.5-flash-lite`
 - `GEMINI_PRO_MODEL`
-  - 既定値: `gemini-2.5-pro`
+  - 既定値: 未設定
+  - 将来の切替用に保持する任意設定
+- `GEMINI_PROJECT_MODEL`
+  - 既定値: `GEMINI_MAIN_MODEL` と同じ
+  - 例: `gemini-2.5-pro`
+- `GEMINI_RETRY_MAX_ATTEMPTS`
+  - 既定値: `5`
+- `GEMINI_RETRY_BASE_DELAY_MS`
+  - 既定値: `2000`
+- `GEMINI_RETRY_MAX_DELAY_MS`
+  - 既定値: `15000`
 - `PDF_EXPORT_ENGINE`
   - 既定値: `puppeteer`
   - `playwright` へ切替可能
@@ -105,6 +110,10 @@ GEMINI_API_KEY=xxxxxxxxxxxxxxxx
 GEMINI_MAIN_MODEL=gemini-2.5-flash
 GEMINI_LIGHT_MODEL=gemini-2.5-flash-lite
 GEMINI_PRO_MODEL=gemini-2.5-pro
+# GEMINI_PROJECT_MODEL=gemini-2.5-pro
+GEMINI_RETRY_MAX_ATTEMPTS=5
+GEMINI_RETRY_BASE_DELAY_MS=2000
+GEMINI_RETRY_MAX_DELAY_MS=15000
 PDF_EXPORT_ENGINE=puppeteer
 WORD_EXPORT_FONT=Meiryo
 WEB_PORT=3000
@@ -157,7 +166,7 @@ src/
     analyzer.ts
     cacheStore.ts
     codeUnits.ts
-    localDemoGenerator.ts
+    mermaidNormalizer.ts
     prompts.ts
     types.ts
   web/

@@ -249,6 +249,314 @@ pre {
   gap: 4mm;
 }
 
+.table-reference-grid {
+  display: grid;
+  gap: 4mm;
+}
+
+.table-reference-excel {
+  border: 1px solid #d9e2ec;
+  border-radius: 3mm;
+  padding: 4mm;
+  background: #ffffff;
+}
+
+.table-reference-header-bar {
+  margin-bottom: 4mm;
+}
+
+.table-reference-toolbar {
+  display: none;
+}
+
+.table-reference-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 3mm;
+}
+
+.table-summary-card {
+  border: 1px solid #d9e2ec;
+  border-radius: 3mm;
+  padding: 3mm;
+  background: #f8fafc;
+}
+
+.table-summary-label {
+  display: block;
+  margin-bottom: 1mm;
+  color: #52606d;
+  font-size: 9pt;
+  font-weight: 700;
+}
+
+.table-reference-scroll {
+  overflow: visible;
+  max-height: none;
+  border: 1px solid #d9e2ec;
+  border-radius: 3mm;
+}
+
+.table-reference-excel-table {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.table-reference-excel-table th,
+.table-reference-excel-table td {
+  border: 1px solid #b8c4d0;
+  padding: 2.5mm;
+  vertical-align: top;
+  text-align: left;
+}
+
+.table-reference-excel-table thead th {
+  background: #ffffff !important;
+}
+
+.table-merged-cell {
+  background: #f3f7fb;
+}
+
+.table-reference-row.group-even td {
+  background: #fbfdff;
+}
+
+.table-reference-row.group-odd td {
+  background: #f6f9fc;
+}
+
+.table-usage-cell {
+  display: block;
+}
+
+.roadmap-plan {
+  display: grid;
+  gap: 4mm;
+}
+
+.roadmap-gantt,
+.roadmap-detail-section {
+  display: grid;
+  gap: 3mm;
+}
+
+.roadmap-intro {
+  margin: 0;
+  color: #52606d;
+  font-size: 9pt;
+}
+
+.roadmap-gantt-scroll {
+  overflow: visible;
+  border: 1px solid #d9e2ec;
+  border-radius: 3mm;
+  background: #ffffff;
+}
+
+.roadmap-gantt-table {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.roadmap-gantt-table th,
+.roadmap-gantt-table td {
+  border: 1px solid #b8c4d0;
+  padding: 2mm;
+  vertical-align: top;
+  text-align: left;
+}
+
+.roadmap-gantt-table thead th {
+  background: #334e68;
+  color: #ffffff;
+  text-align: center;
+  font-size: 8.5pt;
+}
+
+.roadmap-gantt-month {
+  background: #e8eff4 !important;
+  color: #193247 !important;
+}
+
+.roadmap-gantt-phase-band {
+  font-weight: 700;
+  min-width: 32mm;
+}
+
+.roadmap-gantt-phase-cell {
+  background: #eef4fb !important;
+  width: 52mm;
+}
+
+.roadmap-gantt-phase-cell strong {
+  display: block;
+  margin-top: 2mm;
+  color: #193247;
+}
+
+.roadmap-order-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 7mm;
+  padding: 0 2.5mm;
+  border-radius: 999px;
+  background: #dcecff;
+  color: #215f9c;
+  font-size: 8.5pt;
+  font-weight: 700;
+}
+
+.roadmap-order-caption {
+  display: block;
+  margin-top: 1.5mm;
+  color: #52606d;
+  font-size: 8.5pt;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.roadmap-gantt-row.group-even .roadmap-gantt-slot {
+  background: #fbfdff;
+}
+
+.roadmap-gantt-row.group-odd .roadmap-gantt-slot {
+  background: #f5f8fc;
+}
+
+.roadmap-gantt-slot.is-active {
+  background: #ecf5ff !important;
+}
+
+.roadmap-gantt-bar {
+  display: block;
+  height: 4mm;
+  background: linear-gradient(90deg, #2e7cb7, #49a4df);
+}
+
+.roadmap-gantt-slot.is-start .roadmap-gantt-bar {
+  margin-left: 1mm;
+  border-top-left-radius: 999px;
+  border-bottom-left-radius: 999px;
+}
+
+.roadmap-gantt-slot.is-end .roadmap-gantt-bar {
+  margin-right: 1mm;
+  border-top-right-radius: 999px;
+  border-bottom-right-radius: 999px;
+}
+
+.roadmap-gantt-slot.is-start.is-end .roadmap-gantt-bar {
+  border-radius: 999px;
+}
+
+.roadmap-detail-section > h3 {
+  margin: 0;
+  color: #193247;
+  font-size: 12pt;
+}
+
+.roadmap-detail-list {
+  display: grid;
+  gap: 4mm;
+}
+
+.roadmap-detail-card {
+  border: 1px solid #d9e2ec;
+  border-radius: 3mm;
+  padding: 4mm;
+  background: #fcfdff;
+}
+
+.roadmap-detail-header {
+  display: flex;
+  gap: 3mm;
+  align-items: center;
+  margin-bottom: 2mm;
+}
+
+.roadmap-empty {
+  color: #52606d;
+}
+
+.table-confidence-badge {
+  background: #edf2f7;
+  border-color: #cfd9e4;
+  color: #405668;
+}
+
+.table-confidence-badge.confidence-high {
+  background: #dcecff;
+  border-color: #b8d4f2;
+  color: #215f9c;
+}
+
+.table-confidence-badge.confidence-medium {
+  background: #edf3fb;
+  border-color: #cad8ea;
+  color: #4b6782;
+}
+
+.table-confidence-badge.confidence-low {
+  background: #f1f4f7;
+  border-color: #d7dde5;
+  color: #6a7b8a;
+}
+
+.table-reference-empty {
+  color: #52606d;
+}
+
+.table-reference-card {
+  border: 1px solid #d9e2ec;
+  border-radius: 3mm;
+  padding: 4mm;
+  margin: 0 0 4mm;
+  background: #fcfdff;
+}
+
+.table-reference-note {
+  color: #52606d;
+}
+
+.table-reference-copy {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4mm;
+  margin-bottom: 4mm;
+}
+
+.table-reference-copy section {
+  border: 1px solid #d9e2ec;
+  border-radius: 3mm;
+  padding: 3mm;
+  background: #f8fafc;
+}
+
+.table-reference-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 4mm;
+  align-items: flex-start;
+}
+
+.table-column-table {
+  margin-bottom: 0;
+}
+
+.table-column-table th:first-child,
+.table-column-table td:first-child {
+  width: 14mm;
+  text-align: center;
+}
+
 .summary-card,
 .stat-card {
   border: 1px solid #d9e2ec;
@@ -278,11 +586,19 @@ pre {
   border: 1px solid #d9e2ec;
   border-radius: 3mm;
   background: #f8fafc;
+  overflow: hidden;
 }
 
 .mermaid svg {
-  max-width: 100%;
+  display: block;
+  width: auto !important;
+  max-width: 94%;
   height: auto;
+  margin: 0 auto;
+}
+
+.diagram-grid-specification .mermaid svg {
+  max-width: 90%;
 }
 
 .mermaid-source summary {
