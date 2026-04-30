@@ -16,14 +16,19 @@ Excel VBA / Access VBA のコードを読み取り、Gemini で中間JSONを生�
 
 ## 現在できること
 - `.bas` `.cls` `.frm` `.txt` ファイルの読込
+- 複数ファイルの同時選択、追加読込、同名ファイルの差し替え
 - 画面上への VBA コード貼り付け
-- Gemini API による解析
-- Gemini の中間JSON生成
-- 中間JSONからの簡易仕様書HTML表示
-- 中間JSONからの簡易設計書HTML表示
-- 中間JSONからの `Word(.docx)` 出力
-- 中間JSONからの `PDF` 出力
+- Gemini API による関数単位・ファイル単位・プロジェクト単位の段階解析
+- 中間JSONからの以下4文書のHTML表示
+  - 現状仕様書
+  - 問題点分析
+  - 詳細リファクタリング案
+  - リファクタリング設計書
+- 各文書の `PDF` ダウンロード
+- 各文書の `Word(.docx)` ダウンロード
 - 生成済み要約JSONのキャッシュ再利用
+- コード中のSQL文字列からのテーブル / カラム候補抽出
+- Mermaid図の表示向け正規化
 
 ## できないこと
 - 本格的な自動リファクタリング
@@ -31,7 +36,8 @@ Excel VBA / Access VBA のコードを読み取り、Gemini で中間JSONを生�
 - 実行時依存を含む 100% 正確な再現解析
 - `output/` フォルダへの成果物保存
 - CLI での文書生成
-- 複数ファイル一括アップロードUI
+- Access / Excel ファイル本体の直接解析
+- VBA 実行結果や外部DBの実データを使った検証
 
 ## 解析フロー
 1. 入力されたコードをファイル単位で受け取ります。
@@ -69,7 +75,7 @@ Excel VBA / Access VBA のコードを読み取り、Gemini で中間JSONを生�
 3. `ファイル読込` で VBA ファイルを読み込むか、入力欄へコードを貼り付けます。
 4. 必要に応じて案件名 / システム名を入力します。
 5. `解析を実行` を押します。
-6. 生成された簡易仕様書 / 簡易設計書を確認します。
+6. 生成された現状仕様書 / 問題点分析 / 詳細リファクタリング案 / リファクタリング設計書を確認します。
 7. 必要なら `PDF` または `Word` をダウンロードします。
 
 ## 起動仕様
@@ -136,14 +142,18 @@ npm run typecheck
 ```
 
 ## 出力される成果物
-- 簡易仕様書
-  - 画面表示
-  - `PDF` ダウンロード
-  - `Word(.docx)` ダウンロード
-- 簡易設計書
-  - 画面表示
-  - `PDF` ダウンロード
-  - `Word(.docx)` ダウンロード
+解析結果は画面上に4つの文書として表示されます。
+
+- 現状仕様書
+  - 対象機能、現行フロー、テーブル / カラム、主要手続きを整理
+- 問題点分析
+  - 副作用、責務混在、SQL組立、エラー制御などの改修リスクを整理
+- 詳細リファクタリング案
+  - 代替案、推奨方針、段階的ロードマップ、ガードレールを整理
+- リファクタリング設計書
+  - 目標アーキテクチャ、モジュール責務、移行フロー、設計上のリスクを整理
+
+各文書は `PDF` または `Word(.docx)` としてダウンロードできます。
 
 サーバー側で成果物ファイルを恒久保存する構成ではありません。保存対象は再利用用の中間JSONキャッシュです。
 
@@ -160,14 +170,18 @@ public/
 
 samples/
   legacy_excel_sales_sample.bas
+  legacy_excel_receivable_sample.bas
 
 src/
   legacy-analyzer/
     analyzer.ts
     cacheStore.ts
     codeUnits.ts
+    designSchemaLocalizer.ts
+    diagramRefiner.ts
     mermaidNormalizer.ts
     prompts.ts
+    tableReferenceExtractor.ts
     types.ts
   web/
     analysisRenderer.ts
@@ -178,9 +192,10 @@ src/
 ```
 
 ## sample ファイルについて
-- `samples/legacy_excel_sales_sample.bas` に入っているのは VBA ソースコードだけです。
-- 仕様書、設計書、要約文は sample ファイル内には含まれていません。
-- 画面や出力ファイルに出る要約文は、解析ロジック側で生成されたものです。
+- `samples/legacy_excel_sales_sample.bas` は売上・請求作成を題材にした Excel VBA サンプルです。
+- `samples/legacy_excel_receivable_sample.bas` は売掛・入金突合を題材にした Excel VBA サンプルです。
+- どちらもデモ用のレガシーコードであり、仕様書、設計書、要約文はファイル内に含まれていません。
+- 画面や出力ファイルに出る要約文は、解析ロジックと Gemini API によって生成されます。
 
 ## 確認済みポイント
 - `npm run typecheck`
@@ -196,4 +211,4 @@ src/
 - `npm run generate:docs` のような CLI 出力機能は削除済みです。
 
 ## 商談時の説明例
-「古い Excel / Access VBA を読み込ませると、まず中間JSONとして整理し、その同じデータから簡易仕様書と簡易設計書を画面表示できます。さらに、その場で Word や PDF に落とせるので、現状把握や確認会の出発点として使えます。」
+「古い Excel / Access VBA を読み込ませると、まず中間JSONとして整理し、その同じデータから現状仕様書、問題点分析、詳細リファクタリング案、リファクタリング設計書を画面表示できます。さらに、その場で Word や PDF に落とせるので、現状把握や確認会の出発点として使えます。」
