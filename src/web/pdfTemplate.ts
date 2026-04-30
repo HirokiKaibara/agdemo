@@ -7,9 +7,11 @@ const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..", "..");
 const fontPath = path.join(projectRoot, "assets", "fonts", "NotoSansCJKjp-Regular.otf");
 const pdfCssPath = path.join(__dirname, "pdfDocument.css");
+const mermaidRuntimePath = path.join(projectRoot, "node_modules", "mermaid", "dist", "mermaid.min.js");
 
 let cachedFontDataUrl = "";
 let cachedPdfCss = "";
+let cachedMermaidRuntime = "";
 
 async function loadFontDataUrl(): Promise<string> {
   if (!cachedFontDataUrl) {
@@ -28,9 +30,22 @@ async function loadPdfCss(): Promise<string> {
   return cachedPdfCss;
 }
 
+async function loadMermaidRuntime(): Promise<string> {
+  if (!cachedMermaidRuntime) {
+    try {
+      cachedMermaidRuntime = await readFile(mermaidRuntimePath, "utf8");
+    } catch {
+      cachedMermaidRuntime = "";
+    }
+  }
+
+  return cachedMermaidRuntime;
+}
+
 export async function buildPdfHtmlDocument(title: string, bodyHtml: string): Promise<string> {
   const fontDataUrl = await loadFontDataUrl();
   const pdfCss = await loadPdfCss();
+  const mermaidRuntime = await loadMermaidRuntime();
   const fontFace = `
     @font-face {
       font-family: "DemoNotoSansJP";
@@ -40,6 +55,36 @@ export async function buildPdfHtmlDocument(title: string, bodyHtml: string): Pro
       font-display: block;
     }
   `.trim();
+  const mermaidBootstrap = mermaidRuntime
+    ? `
+        <script>${mermaidRuntime}</script>
+        <script>
+          globalThis.__MERMAID_DONE__ = false;
+          window.addEventListener("DOMContentLoaded", async () => {
+            const nodes = document.querySelectorAll(".mermaid");
+
+            if (!nodes.length || !globalThis.mermaid) {
+              globalThis.__MERMAID_DONE__ = true;
+              return;
+            }
+
+            try {
+              globalThis.mermaid.initialize({
+                startOnLoad: false,
+                securityLevel: "loose",
+                theme: "neutral",
+                flowchart: { useMaxWidth: true, htmlLabels: true }
+              });
+              await globalThis.mermaid.run({ nodes });
+            } catch (error) {
+              console.error(error);
+            } finally {
+              globalThis.__MERMAID_DONE__ = true;
+            }
+          });
+        </script>
+      `.trim()
+    : `<script>globalThis.__MERMAID_DONE__ = true;</script>`;
 
   return `
     <!doctype html>
@@ -49,6 +94,7 @@ export async function buildPdfHtmlDocument(title: string, bodyHtml: string): Pro
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>${title}</title>
         <style>${fontFace}\n${pdfCss}</style>
+        ${mermaidBootstrap}
       </head>
       <body>
         <main>

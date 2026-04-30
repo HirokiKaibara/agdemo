@@ -150,10 +150,143 @@ pre {
   background: #fcfdff;
 }
 
+.diagram-card,
+.issue-card,
+.roadmap-card {
+  border: 1px solid #d9e2ec;
+  border-radius: 3mm;
+  padding: 4mm;
+  margin: 0 0 4mm;
+  background: #fcfdff;
+}
+
 .function-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 4mm;
+}
+
+.roadmap-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4mm;
+}
+
+.diagram-header,
+.issue-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 4mm;
+  align-items: flex-start;
+}
+
+.badge-row {
+  display: flex;
+  gap: 2mm;
+  flex-wrap: wrap;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 7mm;
+  padding: 0 2.5mm;
+  border-radius: 999px;
+  font-size: 8.5pt;
+  font-weight: 700;
+  background: #eef3f7;
+  color: #193247;
+}
+
+.badge-critical {
+  background: #fbe4e2;
+  color: #9d2c21;
+}
+
+.badge-high {
+  background: #f9e7db;
+  color: #b85b1c;
+}
+
+.badge-medium {
+  background: #f8f0d7;
+  color: #946200;
+}
+
+.badge-low {
+  background: #e8eff4;
+  color: #56727f;
+}
+
+.badge-now {
+  background: #deefe7;
+  color: #1d6a52;
+}
+
+.badge-next {
+  background: #f2e0d8;
+  color: #7c3519;
+}
+
+.badge-later,
+.badge-info {
+  background: #eef3f7;
+  color: #193247;
+}
+
+.issue-id {
+  margin: 0 0 2mm;
+  color: #52606d;
+  font-size: 9pt;
+  font-weight: 700;
+}
+
+.stat-grid,
+.diagram-grid,
+.issue-grid,
+.roadmap-list {
+  display: grid;
+  gap: 4mm;
+}
+
+.summary-card,
+.stat-card {
+  border: 1px solid #d9e2ec;
+  border-radius: 3mm;
+  padding: 4mm;
+  background: #fcfdff;
+}
+
+.summary-card strong,
+.stat-card strong {
+  display: block;
+  margin-bottom: 1mm;
+  font-size: 16pt;
+  color: #193247;
+}
+
+.summary-card span,
+.stat-card span {
+  color: #52606d;
+  font-size: 9pt;
+  font-weight: 700;
+}
+
+.mermaid {
+  margin: 3mm 0 0;
+  padding: 3mm;
+  border: 1px solid #d9e2ec;
+  border-radius: 3mm;
+  background: #f8fafc;
+}
+
+.mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid-source summary {
+  font-weight: 700;
 }
 
 .empty-value {

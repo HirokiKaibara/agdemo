@@ -263,7 +263,8 @@ async function generateWithGemini(request: AnalyzeRequest): Promise<AnalyzeResul
     fileSummaries.push(fileSummary);
   }
 
-  const project = await buildProjectAnalysis(ai, modelConfig.mainModel, projectName, fileSummaries);
+  const projectModel = modelConfig.proModel || modelConfig.mainModel;
+  const project = await buildProjectAnalysis(ai, projectModel, projectName, fileSummaries);
   const primarySource = files[0]?.fileName ?? request.sourceName ?? "uploaded.bas";
 
   return {
@@ -274,7 +275,10 @@ async function generateWithGemini(request: AnalyzeRequest): Promise<AnalyzeResul
       projectHash: project.hash,
       reused: project.reused
     },
-    modelUsage: modelConfig
+    modelUsage: {
+      ...modelConfig,
+      projectModel
+    }
   };
 }
 
@@ -293,7 +297,10 @@ function generateLocalResult(request: AnalyzeRequest, notice?: string): AnalyzeR
       projectHash: buildHash(projectName, JSON.stringify(files.map((file) => file.hash))),
       reused: false
     },
-    modelUsage: getModelConfig()
+    modelUsage: {
+      ...getModelConfig(),
+      projectModel: "local-demo"
+    }
   };
 }
 

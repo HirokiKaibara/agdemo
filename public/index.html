@@ -9,10 +9,11 @@
   <body>
     <div class="page-shell">
       <header class="hero">
-        <p class="eyebrow">Legacy VBA Analysis Demo</p>
-        <h1>古い Excel / Access VBA から<br>簡易仕様書と簡易設計書を作るデモ</h1>
+        <p class="eyebrow">Legacy VBA Refactoring Navigator</p>
+        <h1>複雑な Excel / Access VBA を<br>現状把握からリファクタリング設計までつなぐ</h1>
         <p class="hero-copy">
-          VBAコードを読み込み、Geminiで中間JSONを生成し、画面表示・Word・PDFへ展開できるデモです。
+          アップロードしたVBAコードから、現状仕様書・問題点分析・詳細リファクタリング案・設計書を順番に出力し、
+          「何をどう直すか」を迷いにくくするデモです。
         </p>
       </header>
 
@@ -22,13 +23,14 @@
             <h2>解析対象コード</h2>
             <div class="actions">
               <label class="file-button">
-                <input id="file-input" type="file" accept=".bas,.cls,.frm,.txt">
+                <input id="file-input" type="file" accept=".bas,.cls,.frm,.txt" multiple>
                 <span>ファイル読込</span>
               </label>
+              <button id="clear-files-button" class="button button-ghost" type="button">選択解除</button>
             </div>
           </div>
 
-          <div class="toolbar">
+          <div class="toolbar toolbar-grid">
             <label class="field">
               <span>実行モード</span>
               <select id="mode-select">
@@ -37,22 +39,34 @@
                 <option value="gemini">Gemini APIのみ</option>
               </select>
             </label>
-            <button id="analyze-button" class="button button-primary" type="button">解析を実行</button>
+            <label class="field">
+              <span>案件名 / システム名</span>
+              <input id="project-name-input" type="text" placeholder="例: 販売管理Access改修">
+            </label>
+            <button id="analyze-button" class="button button-primary button-large" type="button">解析を実行</button>
+          </div>
+
+          <div class="file-state">
+            <p id="source-text" class="source-text">入力: コード貼り付けモード</p>
+            <div id="file-list" class="file-list">
+              <span class="empty-file">ファイル未選択</span>
+            </div>
           </div>
 
           <label class="field">
-            <span>入力コード</span>
+            <span>入力コード / 複数ファイル時のプレビュー</span>
             <textarea id="code-input" spellcheck="false" placeholder="ここにVBAコードを貼り付けるか、ファイルを読み込んでください。"></textarea>
           </label>
         </section>
 
         <aside class="panel panel-side">
-          <h2>このデモで出来る事</h2>
-          <ul class="point-list">
-            <li>古いVBAを読み込むと、仕様書と設計書のたたき台を短時間で作れること</li>
-            <li>コード上の事実と、推測、確認事項を分けて整理できること</li>
-            <li>生成結果をその場で文書として持ち帰れること</li>
-          </ul>
+          <h2>読む導線</h2>
+          <ol class="point-list point-list-ordered">
+            <li>現状仕様書で、対象機能・テーブル・依存関係を把握する</li>
+            <li>問題点分析で、障害化しやすい箇所と優先順位を確認する</li>
+            <li>詳細リファクタリング案で、採るべき代替案と実施順を決める</li>
+            <li>設計書で、分離後の責務と移行フローを確認する</li>
+          </ol>
 
           <div class="status-card">
             <h3>実行ステータス</h3>
@@ -60,30 +74,93 @@
           </div>
         </aside>
 
-        <section class="panel panel-output">
+        <section class="panel panel-summary">
           <div class="panel-header">
-            <h2>簡易仕様書</h2>
-            <div class="actions actions-compact">
-              <button id="spec-pdf-button" class="button button-secondary" type="button" disabled>PDF</button>
-              <button id="spec-docx-button" class="button button-secondary" type="button" disabled>Word</button>
-            </div>
+            <h2>解析サマリー</h2>
           </div>
-          <div id="spec-output" class="document-output">ここに簡易仕様書が表示されます。</div>
+          <div id="analysis-summary" class="summary-grid">
+            <article class="summary-card">
+              <strong>0</strong>
+              <span>対象ファイル</span>
+            </article>
+            <article class="summary-card">
+              <strong>0</strong>
+              <span>主要問題点</span>
+            </article>
+            <article class="summary-card">
+              <strong>0</strong>
+              <span>候補テーブル</span>
+            </article>
+            <article class="summary-card">
+              <strong>0</strong>
+              <span>リファクタリング段階</span>
+            </article>
+          </div>
         </section>
 
         <section class="panel panel-output">
           <div class="panel-header">
-            <h2>簡易設計書</h2>
+            <div>
+              <p class="section-step">Step 1</p>
+              <h2>現状仕様書</h2>
+            </div>
             <div class="actions actions-compact">
-              <button id="design-pdf-button" class="button button-secondary" type="button" disabled>PDF</button>
-              <button id="design-docx-button" class="button button-secondary" type="button" disabled>Word</button>
+              <button class="button button-secondary export-button" data-document-type="spec" data-format="pdf" type="button" disabled>PDF</button>
+              <button class="button button-secondary export-button" data-document-type="spec" data-format="docx" type="button" disabled>Word</button>
             </div>
           </div>
-          <div id="design-output" class="document-output">ここに簡易設計書が表示されます。</div>
+          <p class="section-copy">現行の機能、フロー、依存テーブル、主要手続きを把握するための資料です。</p>
+          <div id="spec-output" class="document-output">ここに現状仕様書が表示されます。</div>
+        </section>
+
+        <section class="panel panel-output">
+          <div class="panel-header">
+            <div>
+              <p class="section-step">Step 2</p>
+              <h2>問題点分析</h2>
+            </div>
+            <div class="actions actions-compact">
+              <button class="button button-secondary export-button" data-document-type="issues" data-format="pdf" type="button" disabled>PDF</button>
+              <button class="button button-secondary export-button" data-document-type="issues" data-format="docx" type="button" disabled>Word</button>
+            </div>
+          </div>
+          <p class="section-copy">副作用、責務の混在、SQL組立、エラー制御など、改修優先度を見極めるための分析です。</p>
+          <div id="issues-output" class="document-output">ここに問題点分析が表示されます。</div>
+        </section>
+
+        <section class="panel panel-output">
+          <div class="panel-header">
+            <div>
+              <p class="section-step">Step 3</p>
+              <h2>詳細リファクタリング案</h2>
+            </div>
+            <div class="actions actions-compact">
+              <button class="button button-secondary export-button" data-document-type="refactor" data-format="pdf" type="button" disabled>PDF</button>
+              <button class="button button-secondary export-button" data-document-type="refactor" data-format="docx" type="button" disabled>Word</button>
+            </div>
+          </div>
+          <p class="section-copy">代替案、候補バージョン、段階的ロードマップ、実施時のガードレールをまとめます。</p>
+          <div id="refactor-output" class="document-output">ここに詳細リファクタリング案が表示されます。</div>
+        </section>
+
+        <section class="panel panel-output">
+          <div class="panel-header">
+            <div>
+              <p class="section-step">Step 4</p>
+              <h2>リファクタリング設計書</h2>
+            </div>
+            <div class="actions actions-compact">
+              <button class="button button-secondary export-button" data-document-type="design" data-format="pdf" type="button" disabled>PDF</button>
+              <button class="button button-secondary export-button" data-document-type="design" data-format="docx" type="button" disabled>Word</button>
+            </div>
+          </div>
+          <p class="section-copy">目標アーキテクチャ、モジュール責務、移行フロー、将来設計上のリスクを整理します。</p>
+          <div id="design-output" class="document-output">ここにリファクタリング設計書が表示されます。</div>
         </section>
       </main>
     </div>
 
+    <script src="/vendor/mermaid.min.js"></script>
     <script type="module" src="/app.js"></script>
   </body>
 </html>

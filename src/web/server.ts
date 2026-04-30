@@ -15,9 +15,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..", "..");
 const publicDir = path.join(projectRoot, "public");
+const vendorDir = path.join(projectRoot, "node_modules", "mermaid", "dist");
 const basePort = Number(process.env.WEB_PORT ?? "3000");
 const appId = "legacy-vba-analysis-demo";
-const apiVersion = "analysis-json-v2";
+const apiVersion = "analysis-json-v3";
 
 function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
   response.writeHead(statusCode, {
@@ -84,11 +85,45 @@ function normalizeMode(value: unknown): AnalyzerMode {
 }
 
 function normalizeDocumentType(value: unknown): AnalysisDocumentType | null {
-  if (value === "spec" || value === "design") {
+  if (value === "spec" || value === "issues" || value === "refactor" || value === "design") {
     return value;
   }
 
   return null;
+}
+
+function normalizeFiles(
+  value: unknown
+): Array<{
+  fileName: string;
+  code: string;
+}> | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const files = value
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+
+      const fileName =
+        typeof (item as { fileName?: unknown }).fileName === "string"
+          ? (item as { fileName: string }).fileName.trim()
+          : "";
+      const code =
+        typeof (item as { code?: unknown }).code === "string" ? (item as { code: string }).code : "";
+
+      if (!fileName || !code.trim()) {
+        return null;
+      }
+
+      return { fileName, code };
+    })
+    .filter((item): item is { fileName: string; code: string } => Boolean(item));
+
+  return files.length > 0 ? files : undefined;
 }
 
 function sanitizeBaseName(sourceName: string): string {
@@ -116,16 +151,18 @@ async function handleApiAnalyze(request: IncomingMessage, response: ServerRespon
   try {
     const body = (await readJsonBody(request)) as {
       code?: unknown;
+      files?: unknown;
       mode?: unknown;
       sourceName?: unknown;
       projectName?: unknown;
     };
 
     const code = typeof body.code === "string" ? body.code : "";
+    const files = normalizeFiles(body.files);
     const sourceName =
       typeof body.sourceName === "string" && body.sourceName.trim()
         ? body.sourceName.trim()
-        : "uploaded.bas";
+        : files?.[0]?.fileName ?? "uploaded.bas";
     const projectName =
       typeof body.projectName === "string" && body.projectName.trim()
         ? body.projectName.trim()
@@ -133,6 +170,7 @@ async function handleApiAnalyze(request: IncomingMessage, response: ServerRespon
 
     const result = await analyzeLegacyCode({
       code,
+      files,
       mode: normalizeMode(body.mode),
       sourceName,
       projectName
@@ -183,7 +221,14 @@ async function handleExport(
       format
     });
 
-    const suffix = documentType === "spec" ? "spec" : "design";
+    const suffix =
+      documentType === "spec"
+        ? "spec"
+        : documentType === "issues"
+          ? "issues"
+          : documentType === "refactor"
+            ? "refactor"
+            : "design";
     const baseName = sanitizeBaseName(sourceName);
     const fileName = `${baseName}_${suffix}.${format}`;
     const contentType =
@@ -241,6 +286,11 @@ async function requestListener(request: IncomingMessage, response: ServerRespons
 
     if (request.method === "GET" && (url.pathname === "/styles.css" || url.pathname === "/app.js")) {
       await serveStaticFile(response, path.join(publicDir, path.basename(url.pathname)));
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/vendor/mermaid.min.js") {
+      await serveStaticFile(response, path.join(vendorDir, "mermaid.min.js"));
       return;
     }
 

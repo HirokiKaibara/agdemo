@@ -1,8 +1,6 @@
 import {
-  AlignmentType,
   Document,
   HeadingLevel,
-  LevelFormat,
   Packer,
   Paragraph,
   TextRun,
@@ -10,7 +8,7 @@ import {
 } from "docx";
 
 import type { AnalysisDocumentType, LegacyAnalysisDocument } from "../legacy-analyzer/types.js";
-import { renderDesignHtml, renderSpecificationHtml } from "./analysisRenderer.js";
+import { renderDesignHtml, renderIssuesHtml, renderRefactorHtml, renderSpecificationHtml } from "./analysisRenderer.js";
 import { buildPdfHtmlDocument } from "./pdfTemplate.js";
 
 export type DownloadFormat = "pdf" | "docx";
@@ -32,6 +30,10 @@ const defaultFontConfig = {
   eastAsia: defaultFont,
   cs: defaultFont
 } as const;
+
+function stripLeadingOrderMarker(value: string): string {
+  return value.replace(/^\s*\d+(?:\.\d+)*[\.\)]\s*/u, "").trim();
+}
 
 function textRun(text: string, bold = false): TextRun {
   return new TextRun({
@@ -90,13 +92,13 @@ function labelParagraph(label: string, value: string): Paragraph {
         color: defaultColor,
         size: 22
       }),
-      textRun(value)
+      textRun(value || "該当なし")
     ]
   });
 }
 
 function listParagraphs(title: string, items: string[]): Paragraph[] {
-  const paragraphs = [
+  const children = [
     new Paragraph({
       spacing: { before: 100, after: 60 },
       children: [textRun(title, true)]
@@ -104,103 +106,220 @@ function listParagraphs(title: string, items: string[]): Paragraph[] {
   ];
 
   if (items.length === 0) {
-    paragraphs.push(paragraph("該当なし"));
-    return paragraphs;
+    children.push(paragraph("該当なし"));
+    return children;
   }
 
   for (const item of items) {
-    paragraphs.push(bulletParagraph(item));
+    children.push(bulletParagraph(item));
   }
 
-  return paragraphs;
+  return children;
+}
+
+function diagramParagraphs(title: string, diagrams: Array<{ title: string; description: string; mermaid: string }>): Paragraph[] {
+  const children = [heading(title, HeadingLevel.HEADING_2)];
+
+  if (diagrams.length === 0) {
+    children.push(paragraph("図はありません。"));
+    return children;
+  }
+
+  for (const diagram of diagrams) {
+    children.push(heading(diagram.title, HeadingLevel.HEADING_3));
+    children.push(paragraph(diagram.description));
+    children.push(paragraph(diagram.mermaid));
+  }
+
+  return children;
 }
 
 function buildSpecDocxSections(analysis: LegacyAnalysisDocument): Paragraph[] {
   const sections: Paragraph[] = [
-    heading("簡易仕様書", HeadingLevel.HEADING_1),
+    heading("1. 現状仕様書", HeadingLevel.HEADING_1),
     labelParagraph("プロジェクト", analysis.projectName),
-    labelParagraph("要約", analysis.summary),
-    heading("概要", HeadingLevel.HEADING_2),
+    labelParagraph("全体概要", analysis.summary),
+    heading("現状概要", HeadingLevel.HEADING_2),
     paragraph(analysis.specification.overview),
-    heading("対象ファイル", HeadingLevel.HEADING_2),
-    heading("主な機能", HeadingLevel.HEADING_2),
-    heading("ファイル別の主要関数", HeadingLevel.HEADING_2)
+    heading("読む順番", HeadingLevel.HEADING_2),
+    ...analysis.specification.userJourney.map((item) => bulletParagraph(stripLeadingOrderMarker(item))),
+    heading("現行フロー", HeadingLevel.HEADING_2)
   ];
 
-  for (const file of analysis.targetFiles) {
-    sections.push(heading(file.fileName, HeadingLevel.HEADING_3));
-    sections.push(labelParagraph("役割", file.role));
-    sections.push(labelParagraph("要約", file.summary));
+  for (const flow of analysis.specification.currentFlows) {
+    sections.push(labelParagraph(flow.step, `${flow.detail} / ${flow.actors.join(" / ")}`));
   }
+
+  sections.push(heading("現行機能一覧", HeadingLevel.HEADING_2));
 
   for (const feature of analysis.specification.features) {
     sections.push(heading(feature.name, HeadingLevel.HEADING_3));
     sections.push(paragraph(feature.description));
     sections.push(...listParagraphs("入力", feature.inputs));
     sections.push(...listParagraphs("出力", feature.outputs));
-    sections.push(...listParagraphs("業務ルール候補", feature.businessRules));
+    sections.push(...listParagraphs("業務ルール", feature.businessRules));
+    sections.push(...listParagraphs("関連ファイル", feature.relatedFiles));
   }
 
-  sections.push(heading("主要関数一覧", HeadingLevel.HEADING_2));
+  sections.push(...diagramParagraphs("Mermaid図", analysis.specification.diagrams));
+  sections.push(heading("テーブル / カラム", HeadingLevel.HEADING_2));
+
+  for (const table of analysis.specification.tables) {
+    sections.push(heading(table.name, HeadingLevel.HEADING_3));
+    sections.push(labelParagraph("用途", table.usage));
+    sections.push(labelParagraph("信頼度", table.confidence));
+    sections.push(labelParagraph("備考", table.notes));
+    sections.push(...listParagraphs("カラム候補", table.columns));
+  }
+
+  sections.push(heading("エンドポイント", HeadingLevel.HEADING_2));
+
+  for (const endpoint of analysis.specification.endpoints) {
+    sections.push(heading(endpoint.name, HeadingLevel.HEADING_3));
+    sections.push(labelParagraph("メソッド", endpoint.method));
+    sections.push(labelParagraph("パス / URL", endpoint.path));
+    sections.push(labelParagraph("用途", endpoint.purpose));
+    sections.push(labelParagraph("信頼度", endpoint.confidence));
+  }
+
+  sections.push(heading("対象ファイルと主要手続き", HeadingLevel.HEADING_2));
 
   for (const file of analysis.targetFiles) {
     sections.push(heading(file.fileName, HeadingLevel.HEADING_3));
+    sections.push(labelParagraph("種別", file.objectType));
+    sections.push(labelParagraph("役割", file.role));
+    sections.push(labelParagraph("概要", file.summary));
+    sections.push(...listParagraphs("依存関係", file.dependencies));
 
     for (const fn of file.mainFunctions) {
       sections.push(heading(fn.name, HeadingLevel.HEADING_4));
       sections.push(paragraph(fn.description));
       sections.push(...listParagraphs("入力", fn.inputs));
       sections.push(...listParagraphs("出力", fn.outputs));
-      sections.push(...listParagraphs("処理概要", fn.process));
-      sections.push(...listParagraphs("注意点", fn.notes));
+      sections.push(...listParagraphs("処理手順", fn.process));
+      sections.push(...listParagraphs("留意点", fn.notes));
     }
   }
 
   return sections;
 }
 
+function buildIssuesDocxSections(analysis: LegacyAnalysisDocument): Paragraph[] {
+  const sections: Paragraph[] = [
+    heading("2. 問題点分析", HeadingLevel.HEADING_1),
+    labelParagraph("プロジェクト", analysis.projectName),
+    labelParagraph("分析要約", analysis.issues.overview)
+  ];
+
+  for (const issue of analysis.issues.findings) {
+    sections.push(heading(`${issue.id} ${issue.title}`, HeadingLevel.HEADING_2));
+    sections.push(labelParagraph("重大度", issue.severity));
+    sections.push(labelParagraph("優先度", issue.priority));
+    sections.push(labelParagraph("分類", issue.category));
+    sections.push(labelParagraph("影響", issue.impact));
+    sections.push(...listParagraphs("症状", issue.symptoms));
+    sections.push(...listParagraphs("根拠", issue.evidence));
+    sections.push(...listParagraphs("影響ファイル", issue.affectedFiles));
+    sections.push(labelParagraph("推奨アクション", issue.recommendation));
+  }
+
+  return sections;
+}
+
+function buildRefactorDocxSections(analysis: LegacyAnalysisDocument): Paragraph[] {
+  const sections: Paragraph[] = [
+    heading("3. 詳細リファクタリング案", HeadingLevel.HEADING_1),
+    labelParagraph("戦略", analysis.refactoring.strategy),
+    labelParagraph("推奨方針", analysis.refactoring.recommendedApproach),
+    heading("到達目標", HeadingLevel.HEADING_2),
+    ...analysis.refactoring.goals.map((goal) => bulletParagraph(goal)),
+    heading("代替案", HeadingLevel.HEADING_2)
+  ];
+
+  for (const option of analysis.refactoring.alternatives) {
+    sections.push(heading(option.name, HeadingLevel.HEADING_3));
+    sections.push(paragraph(option.summary));
+    sections.push(labelParagraph("適合度", option.fitScore));
+    sections.push(labelParagraph("採用条件", option.whenToChoose));
+    sections.push(...listParagraphs("候補バージョン", option.targetVersions));
+    sections.push(...listParagraphs("長所", option.pros));
+    sections.push(...listParagraphs("短所", option.cons));
+  }
+
+  sections.push(...diagramParagraphs("Mermaid図", analysis.refactoring.diagrams));
+  sections.push(heading("ロードマップ", HeadingLevel.HEADING_2));
+
+  for (const phase of analysis.refactoring.roadmap) {
+    sections.push(heading(phase.phase, HeadingLevel.HEADING_3));
+    sections.push(paragraph(phase.objective));
+    sections.push(...listParagraphs("実施タスク", phase.tasks));
+    sections.push(...listParagraphs("成果物", phase.outputs));
+    sections.push(...listParagraphs("検証観点", phase.validations));
+    sections.push(...listParagraphs("リスク", phase.risks));
+  }
+
+  sections.push(heading("ガードレール", HeadingLevel.HEADING_2));
+  sections.push(...analysis.refactoring.guardrails.map((item) => bulletParagraph(item)));
+  sections.push(heading("成果物", HeadingLevel.HEADING_2));
+  sections.push(...analysis.refactoring.deliverables.map((item) => bulletParagraph(item)));
+
+  return sections;
+}
+
 function buildDesignDocxSections(analysis: LegacyAnalysisDocument): Paragraph[] {
   const sections: Paragraph[] = [
-    heading("簡易設計書", HeadingLevel.HEADING_1),
+    heading("4. リファクタリング設計書", HeadingLevel.HEADING_1),
     labelParagraph("プロジェクト", analysis.projectName),
-    labelParagraph("要約", analysis.summary),
-    heading("アーキテクチャ", HeadingLevel.HEADING_2),
-    paragraph(analysis.design.architecture),
-    heading("モジュール一覧", HeadingLevel.HEADING_2)
+    labelParagraph("目標アーキテクチャ", analysis.design.architecture),
+    ...diagramParagraphs("Mermaid図", analysis.design.diagrams),
+    heading("目標モジュール設計", HeadingLevel.HEADING_2)
   ];
 
   for (const module of analysis.design.modules) {
     sections.push(heading(module.name, HeadingLevel.HEADING_3));
     sections.push(labelParagraph("責務", module.responsibility));
-    sections.push(labelParagraph("関連ファイル", module.relatedFiles.join(" / ") || "該当なし"));
+    sections.push(...listParagraphs("関連ファイル", module.relatedFiles));
+    sections.push(...listParagraphs("インターフェース", module.interfaces));
+    sections.push(...listParagraphs("補足", module.notes));
   }
 
-  sections.push(heading("データフロー", HeadingLevel.HEADING_2));
+  sections.push(heading("移行フロー", HeadingLevel.HEADING_2));
+  sections.push(...analysis.design.migrationFlow.map((item) => bulletParagraph(item)));
+  sections.push(heading("目標テーブル / カラム設計メモ", HeadingLevel.HEADING_2));
 
-  for (const item of analysis.design.dataFlow) {
-    sections.push(bulletParagraph(item));
+  for (const table of analysis.design.tables) {
+    sections.push(heading(table.name, HeadingLevel.HEADING_3));
+    sections.push(labelParagraph("用途", table.usage));
+    sections.push(labelParagraph("信頼度", table.confidence));
+    sections.push(labelParagraph("備考", table.notes));
+    sections.push(...listParagraphs("カラム候補", table.columns));
   }
 
-  sections.push(heading("リスク・注意点", HeadingLevel.HEADING_2));
+  sections.push(heading("目標エンドポイント / 外部連携", HeadingLevel.HEADING_2));
 
-  for (const item of analysis.design.risks) {
-    sections.push(bulletParagraph(item));
+  for (const endpoint of analysis.design.endpoints) {
+    sections.push(heading(endpoint.name, HeadingLevel.HEADING_3));
+    sections.push(labelParagraph("メソッド", endpoint.method));
+    sections.push(labelParagraph("パス / URL", endpoint.path));
+    sections.push(labelParagraph("用途", endpoint.purpose));
+    sections.push(labelParagraph("信頼度", endpoint.confidence));
   }
 
-  sections.push(heading("対象ファイルとの対応", HeadingLevel.HEADING_2));
-
-  for (const file of analysis.targetFiles) {
-    sections.push(heading(file.fileName, HeadingLevel.HEADING_3));
-    sections.push(labelParagraph("役割", file.role));
-    sections.push(labelParagraph("要約", file.summary));
-  }
+  sections.push(heading("設計上のリスク", HeadingLevel.HEADING_2));
+  sections.push(...analysis.design.risks.map((item) => bulletParagraph(item)));
 
   return sections;
 }
 
 async function buildDocxBuffer(analysis: LegacyAnalysisDocument, documentType: AnalysisDocumentType): Promise<Buffer> {
   const children =
-    documentType === "spec" ? buildSpecDocxSections(analysis) : buildDesignDocxSections(analysis);
+    documentType === "spec"
+      ? buildSpecDocxSections(analysis)
+      : documentType === "issues"
+        ? buildIssuesDocxSections(analysis)
+        : documentType === "refactor"
+          ? buildRefactorDocxSections(analysis)
+          : buildDesignDocxSections(analysis);
 
   const document = new Document({
     styles: {
@@ -213,45 +332,18 @@ async function buildDocxBuffer(analysis: LegacyAnalysisDocument, documentType: A
           }
         },
         heading1: {
-          run: {
-            font: defaultFontConfig,
-            color: defaultColor
-          }
+          run: { font: defaultFontConfig, color: defaultColor }
         },
         heading2: {
-          run: {
-            font: defaultFontConfig,
-            color: defaultColor
-          }
+          run: { font: defaultFontConfig, color: defaultColor }
         },
         heading3: {
-          run: {
-            font: defaultFontConfig,
-            color: defaultColor
-          }
+          run: { font: defaultFontConfig, color: defaultColor }
         },
         heading4: {
-          run: {
-            font: defaultFontConfig,
-            color: defaultColor
-          }
+          run: { font: defaultFontConfig, color: defaultColor }
         }
       }
-    },
-    numbering: {
-      config: [
-        {
-          reference: "legacy-numbered",
-          levels: [
-            {
-              level: 0,
-              format: LevelFormat.DECIMAL,
-              text: "%1.",
-              alignment: AlignmentType.START
-            }
-          ]
-        }
-      ]
     },
     sections: [
       {
@@ -277,11 +369,35 @@ async function buildDocxBuffer(analysis: LegacyAnalysisDocument, documentType: A
 }
 
 function getDocumentTitle(documentType: AnalysisDocumentType): string {
-  return documentType === "spec" ? "簡易仕様書" : "簡易設計書";
+  if (documentType === "spec") {
+    return "現状仕様書";
+  }
+
+  if (documentType === "issues") {
+    return "問題点分析";
+  }
+
+  if (documentType === "refactor") {
+    return "詳細リファクタリング案";
+  }
+
+  return "リファクタリング設計書";
 }
 
 function renderDocumentHtml(analysis: LegacyAnalysisDocument, documentType: AnalysisDocumentType): string {
-  return documentType === "spec" ? renderSpecificationHtml(analysis) : renderDesignHtml(analysis);
+  if (documentType === "spec") {
+    return renderSpecificationHtml(analysis);
+  }
+
+  if (documentType === "issues") {
+    return renderIssuesHtml(analysis);
+  }
+
+  if (documentType === "refactor") {
+    return renderRefactorHtml(analysis);
+  }
+
+  return renderDesignHtml(analysis);
 }
 
 async function importOptionalModule(moduleName: string): Promise<any> {
@@ -289,6 +405,18 @@ async function importOptionalModule(moduleName: string): Promise<any> {
     target: string
   ) => Promise<any>;
   return importer(moduleName);
+}
+
+async function waitForMermaid(page: {
+  waitForFunction: (fn: () => boolean, options?: { timeout?: number }) => Promise<unknown>;
+}): Promise<void> {
+  try {
+    await page.waitForFunction(() => (globalThis as { __MERMAID_DONE__?: boolean }).__MERMAID_DONE__ === true, {
+      timeout: 10000
+    });
+  } catch {
+    return;
+  }
 }
 
 async function buildPdfBuffer(analysis: LegacyAnalysisDocument, documentType: AnalysisDocumentType): Promise<Buffer> {
@@ -301,7 +429,8 @@ async function buildPdfBuffer(analysis: LegacyAnalysisDocument, documentType: An
 
     try {
       const page = await browser.newPage();
-      await page.setContent(html, { waitUntil: "domcontentloaded" });
+      await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 60000 });
+      await waitForMermaid(page);
       await page.evaluate(async () => {
         await document.fonts.ready;
       });
@@ -322,7 +451,8 @@ async function buildPdfBuffer(analysis: LegacyAnalysisDocument, documentType: An
 
   try {
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "domcontentloaded" });
+    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await waitForMermaid(page);
     await page.evaluate(async () => {
       await document.fonts.ready;
     });
